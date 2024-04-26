@@ -34,8 +34,3 @@ fmt:
 
 container:
 	docker-compose up -d --scale engine=5
-
-pushgit:
-	git add .
-	git commit -m "_"
-	git push -f origin main

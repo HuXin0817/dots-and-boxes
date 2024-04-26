@@ -35,8 +35,7 @@ func addEdgeLogic() {
 
 	time.Sleep(time.Second / 2)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*3
-	rm0)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*30)
 	defer cancel()
 
 	totalCalNumber := int(postGameInformationResponse.TotalCalNumber)
