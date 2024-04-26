@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package serve;
+option go_package = "./serve";
+
+message GameInformationRequest {
+  string GameUid = 1;
+  string Timestamp = 2;
+  int64 StepCount = 3;
+  int64 BoardSize = 4;
+  map<int64, bool> Edges = 5;
+  int64 MoveEdge = 6;
+  bool AI1 = 7;
+  bool AI2 = 8;
+  string NowTurn = 9;
+  int64 Team1Score = 10;
+  int64 Team2Score = 11;
+  bool GameOver = 12;
+}
+
+message  GameInformationRequestResponse {
+  int64 TotalCalNumber = 1;
+}
+
+message InquireBestEdgeRequest {
+  string GameUid = 1;
+  int64 Step = 2;
+  int64 StepCount = 3;
+  int64 BoardSize = 4;
+  map<int64, bool> Edges = 6;
+  int64 WaitingTime = 7;
+}
+
+message InquireBestEdgeResponse {
+  int64 CalculatedNumber = 1;
+  int64 NowBestEdge = 2;
+}
+
+service Serve {
+  rpc PostGameInformation(GameInformationRequest) returns (GameInformationRequestResponse);
+  rpc InquireBestEdge(InquireBestEdgeRequest) returns (InquireBestEdgeResponse);
+}

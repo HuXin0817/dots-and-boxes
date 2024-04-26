@@ -1,0 +1,15 @@
+Name: serve.rpc
+ListenOn: 0.0.0.0:8000
+Etcd:
+  Hosts:
+    - etcd:2379
+  Key: serve.rpc
+
+Redis:
+  Key: ""
+  Host: redis:6379
+
+MongoConf:
+  Url: "mongodb://root:%s@mongodb:27017/"
+  DataBaseName: GameLog
+  
