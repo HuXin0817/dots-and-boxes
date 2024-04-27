@@ -1,6 +1,6 @@
 module github.com/HuXin0817/dots-and-boxes
 
-go 1.22.2
+go 1.22
 
 require (
 	fyne.io/fyne/v2 v2.4.5
