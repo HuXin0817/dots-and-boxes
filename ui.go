@@ -3,13 +3,14 @@ package main
 import (
 	"fmt"
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"image/color"
 	"log"
+	"os"
 	"sync"
+	"time"
 )
 
 var (
@@ -26,7 +27,7 @@ var (
 
 	BoxSize = DotDistance - DotWidth
 
-	mainWindow = app.New().NewWindow("Dots and Boxes")
+	mainWindowSize = DotDistance*float32(BoardSize) + DotMargin
 )
 
 func transPosition(x int) float32 {
@@ -69,55 +70,53 @@ func NewBox(s Box) *canvas.Rectangle {
 }
 
 type BoardUI struct {
-	GameInformation     *Game
-	AIPlayer1           bool
-	AIPlayer2           bool
-	Container           *fyne.Container
-	Edges               map[Edge]*canvas.Line
-	Boxes               map[Box]*canvas.Rectangle
-	Dots                map[Dot]*canvas.Circle
-	Buttons             map[Edge]*widget.Button
-	TriggerAfterAddEdge func()
-	LastChangedEdge     Edge
-	mu                  sync.Mutex
+	board        Board
+	aiPlayer1    bool
+	aiPlayer2    bool
+	player1Score int
+	player2Score int
+	NowTurn      Turn
+	Container    *fyne.Container
+	edges        map[Edge]*canvas.Line
+	boxes        map[Box]*canvas.Rectangle
+	buttons      map[Edge]*widget.Button
+	signChan     chan struct{}
+	mu           sync.Mutex
 }
 
-func NewBoardUI(BoardSize int) (newBoard *BoardUI) {
+func NewBoardUI() (board *BoardUI) {
 	background := canvas.NewRectangle(color.Black)
 	background.Move(fyne.NewPos(0, 0))
 	background.Resize(fyne.NewSize(1e10, 1e10))
 
-	newBoard = &BoardUI{
-		GameInformation:     NewGame(BoardSize),
-		Container:           container.NewWithoutLayout(background),
-		Edges:               make(map[Edge]*canvas.Line),
-		Boxes:               make(map[Box]*canvas.Rectangle),
-		Dots:                make(map[Dot]*canvas.Circle),
-		Buttons:             make(map[Edge]*widget.Button),
-		TriggerAfterAddEdge: func() {},
+	board = &BoardUI{
+		board:     make(Board),
+		NowTurn:   Player1Turn,
+		Container: container.NewWithoutLayout(background),
+		edges:     make(map[Edge]*canvas.Line),
+		boxes:     make(map[Box]*canvas.Rectangle),
+		buttons:   make(map[Edge]*widget.Button),
+		signChan:  make(chan struct{}, 1),
 	}
 
-	boxes := Boxes(BoardSize)
-	for _, b := range boxes {
+	for _, b := range Boxes {
 		boxUi := NewBox(b)
-		newBoard.Boxes[b] = boxUi
-		newBoard.Container.Add(boxUi)
+		board.boxes[b] = boxUi
+		board.Container.Add(boxUi)
 	}
 
-	edges := Edges(BoardSize)
-	for _, e := range edges {
+	for _, e := range EdgesMap {
 		edgeUi := NewEdgeCanvas(e)
-		newBoard.Edges[e] = edgeUi
-		newBoard.Container.Add(edgeUi)
-		newBoard.Buttons[e] = widget.NewButton("", func() {
+		board.edges[e] = edgeUi
+		board.Container.Add(edgeUi)
+		board.buttons[e] = widget.NewButton("", func() {
 			switch {
-			case bool(newBoard.AIPlayer1) && newBoard.GameInformation.NowPlayer == Player1:
+			case AIPlayer1 && board.NowTurn == Player1Turn:
 				return
-			case bool(newBoard.AIPlayer2) && newBoard.GameInformation.NowPlayer == Player2:
+			case AIPlayer2 && board.NowTurn == Player2Turn:
 				return
 			}
-
-			newBoard.AddEdge(e)
+			board.AddEdge(e)
 		})
 
 		var SizeX, SizeY float32
@@ -129,86 +128,100 @@ func NewBoardUI(BoardSize int) (newBoard *BoardUI) {
 			SizeY = DotWidth
 		}
 
-		newBoard.Buttons[e].Resize(fyne.NewSize(SizeX, SizeY))
-		PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - newBoard.Buttons[e].Size().Width/2 + DotWidth/2
-		PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - newBoard.Buttons[e].Size().Height/2 + DotWidth/2
-		newBoard.Buttons[e].Move(fyne.NewPos(PosX, PosY))
-		newBoard.Container.Add(newBoard.Buttons[e])
+		board.buttons[e].Resize(fyne.NewSize(SizeX, SizeY))
+		PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - board.buttons[e].Size().Width/2 + DotWidth/2
+		PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - board.buttons[e].Size().Height/2 + DotWidth/2
+		board.buttons[e].Move(fyne.NewPos(PosX, PosY))
+		board.Container.Add(board.buttons[e])
 	}
 
-	dots := Dots(BoardSize)
-	for _, d := range dots {
+	for _, d := range Dots {
 		dotUi := NewDotCanvas(d)
-		newBoard.Dots[d] = dotUi
-		newBoard.Container.Add(dotUi)
+		board.Container.Add(dotUi)
 	}
+
+	go func() {
+		for range board.signChan {
+			e := GenerateBestEdge(board.board)
+			board.AddEdge(e)
+		}
+	}()
 
 	return
 }
 
 func (b *BoardUI) AddEdge(e Edge) {
-	defer b.TriggerAfterAddEdge()
-
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if _, c := b.GameInformation.Board.Edges[e]; c {
+	if _, c := b.board[e]; c {
 		return
 	}
 
-	b.Buttons[e].Hide()
-	player := b.GameInformation.NowPlayer
+	defer b.Container.Refresh()
 
-	if player == Player1 {
-		b.Edges[e].StrokeColor = Player1HighLightColor
+	if button, c := b.buttons[e]; c {
+		button.Hide()
+	} else {
+		return
 	}
 
-	if player == Player2 {
-		b.Edges[e].StrokeColor = Player2HighLightColor
+	player := b.NowTurn
+
+	if player == Player1Turn {
+		b.edges[e].StrokeColor = Player1HighLightColor
+	} else {
+		b.edges[e].StrokeColor = Player2HighLightColor
 	}
 
-	boxes := b.GameInformation.Board.ObtainsBoxes(e)
+	boxes := b.board.ObtainsBoxes(e)
 	for _, box := range boxes {
-		if player == Player1 {
-			b.Boxes[box].FillColor = Player1FilledColor
-		}
-
-		if player == Player2 {
-			b.Boxes[box].FillColor = Player2FilledColor
+		if player == Player1Turn {
+			b.boxes[box].FillColor = Player1FilledColor
+		} else {
+			b.boxes[box].FillColor = Player2FilledColor
 		}
 	}
 
-	b.GameInformation.Add(e)
-	b.Container.Refresh()
-
-	if player == Player1 {
-		log.Printf("Player1 Move, Edge: %s\n", e.String())
+	score := b.board.ObtainsScore(e)
+	if b.NowTurn == Player1Turn {
+		b.player1Score += score
+	} else {
+		b.player2Score += score
 	}
 
-	if player == Player2 {
-		log.Printf("Player2 Move, Edge: %s\n", e.String())
+	if score == 0 {
+		b.NowTurn.Change()
 	}
 
-	fmt.Printf("Player1 Score: %d, Player2 Score: %d\n\n", b.GameInformation.Player1Score, b.GameInformation.Player2Score)
-	b.LastChangedEdge = e
+	if player == Player1Turn {
+		log.Printf("Player1 Move, Edge: %s\n", e.ToString())
+	}
 
-	if b.GameInformation.FreeEdgesCount() == 0 {
+	if player == Player2Turn {
+		log.Printf("Player2 Move, Edge: %s\n", e.ToString())
+	}
+
+	b.board[e] = struct{}{}
+	if b.player1Score+len(EdgesMap)-len(b.board) < b.player2Score || b.player2Score+len(EdgesMap)-len(b.board) < b.player1Score || len(EdgesMap) == len(b.board) {
 		switch {
-		case b.GameInformation.Player1Score > b.GameInformation.Player2Score:
-			fmt.Println("Player1 Win!, Score:", b.GameInformation.Player1Score)
-		case b.GameInformation.Player2Score > b.GameInformation.Player1Score:
-			fmt.Println("Player2 Win!, Score:", b.GameInformation.Player2Score)
-		case b.GameInformation.Player1Score == b.GameInformation.Player2Score:
+		case b.player1Score > b.player2Score:
+			fmt.Println("Player1 Win! Score:", b.player1Score)
+		case b.player2Score > b.player1Score:
+			fmt.Println("Player2 Win! Score:", b.player2Score)
+		case b.player1Score == b.player2Score:
 			fmt.Println("Draw!")
 		}
 
-		b.Container.Refresh()
+		time.Sleep(time.Second * 3)
+		os.Exit(0)
 	}
-}
 
-func (b *BoardUI) Run() {
-	size := DotDistance*float32(b.GameInformation.BoardSize) + DotMargin
-	mainWindow.Resize(fyne.NewSize(size, size))
-	mainWindow.SetContent(b.Container)
-	mainWindow.ShowAndRun()
+	fmt.Printf("Player1 Score: %d, Player2 Score: %d\n\n", b.player1Score, b.player2Score)
+
+	if b.aiPlayer1 && b.NowTurn == Player1Turn {
+		b.signChan <- struct{}{}
+	} else if b.aiPlayer2 && b.NowTurn == Player2Turn {
+		b.signChan <- struct{}{}
+	}
 }

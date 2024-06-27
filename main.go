@@ -1,34 +1,34 @@
 package main
 
-import "time"
-
-var (
-	AIPlayer1 = false
-	AIPlayer2 = false
-	BoardSize = 6
+import (
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"time"
 )
 
+const (
+	BoardSize = 6
+	AIPlayer1 = true
+	AIPlayer2 = true
+)
+
+var mainWindow = app.New().NewWindow("Dots and boxes")
+
 func main() {
-	UI := NewBoardUI(BoardSize)
-	UI.AIPlayer1 = AIPlayer1
-	UI.AIPlayer2 = AIPlayer2
+	board := NewBoardUI()
+	board.aiPlayer1 = AIPlayer1
+	board.aiPlayer2 = AIPlayer2
 
-	UI.TriggerAfterAddEdge = func() {
-		if UI.AIPlayer1 && UI.GameInformation.NowPlayer == Player1 {
-			UI.AddEdge(GetBestMove(UI.GameInformation.Board))
-		}
+	mainWindow.Resize(fyne.NewSize(mainWindowSize, mainWindowSize))
+	mainWindow.SetContent(board.Container)
 
-		if UI.AIPlayer2 && UI.GameInformation.NowPlayer == Player2 {
-			UI.AddEdge(GetBestMove(UI.GameInformation.Board))
-		}
-	}
-
-	if UI.AIPlayer1 {
+	if board.aiPlayer1 {
 		go func() {
 			time.Sleep(time.Second)
-			UI.AddEdge(GetBestMove(UI.GameInformation.Board))
+			e := GenerateBestEdge(board.board)
+			board.AddEdge(e)
 		}()
 	}
 
-	UI.Run()
+	mainWindow.ShowAndRun()
 }
