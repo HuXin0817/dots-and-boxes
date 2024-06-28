@@ -3,6 +3,7 @@ package main
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"github.com/HuXin0817/colog"
 	"time"
 )
 
@@ -15,6 +16,11 @@ const (
 var mainWindow = app.New().NewWindow("Dots and boxes")
 
 func main() {
+	err := colog.OpenLog("gamelog/" + time.Now().Format(time.DateTime) + ".log")
+	if err != nil {
+		panic(err)
+	}
+
 	board := NewBoardUI()
 	board.aiPlayer1 = AIPlayer1
 	board.aiPlayer2 = AIPlayer2

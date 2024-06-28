@@ -52,14 +52,12 @@ func (e Edge) ToString() string {
 }
 
 func (e Edge) NearBoxes() []Box {
-	nearBoxes := []Box{Box(e.Dot1())}
 	x := e.Dot2().X() - 1
 	y := e.Dot2().Y() - 1
 	if x >= 0 && y >= 0 {
-		box := Box(NewDot(x, y))
-		nearBoxes = append(nearBoxes, box)
+		return []Box{Box(e.Dot1()), Box(NewDot(x, y))}
 	}
-	return nearBoxes
+	return []Box{Box(e.Dot1())}
 }
 
 var EdgesMap = func() (Edges []Edge) {
@@ -77,7 +75,7 @@ var EdgesMap = func() (Edges []Edge) {
 	return
 }()
 
-func (b Box) Edges() [4]Edge {
+func (b Box) Edges() []Edge {
 	x := Dot(b).X()
 	y := Dot(b).Y()
 
@@ -86,7 +84,7 @@ func (b Box) Edges() [4]Edge {
 	D01 := NewDot(x, y+1)
 	D11 := NewDot(x+1, y+1)
 
-	return [...]Edge{
+	return []Edge{
 		NewEdge(D00, D01),
 		NewEdge(D00, D10),
 		NewEdge(D10, D11),
