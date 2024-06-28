@@ -7,11 +7,13 @@ import (
 	"time"
 )
 
+// 常量定义
 const (
-	SearchTime = int(1e7)
-	Goroutines = int(64)
+	SearchTime = int(1e7) // 搜索时间
+	Goroutines = int(64)  // 协程数量
 )
 
+// 获取下一步的边
 func GetNextEdges(s Board) map[Edge]struct{} {
 	canGetOneScoreEdges := make(map[Edge]struct{})
 	mayGiveEnemyScoreEdges := make(map[int]map[Edge]struct{})
@@ -54,27 +56,37 @@ func GetNextEdges(s Board) map[Edge]struct{} {
 			return mayGiveEnemyScoreEdges[2]
 		}
 	} else {
+		if len(mayGiveEnemyScoreEdges[0])+len(mayGiveEnemyScoreEdges[1])+len(mayGiveEnemyScoreEdges[2]) == 0 {
+			for e := range canGetOneScoreEdges {
+				return map[Edge]struct{}{e: {}}
+			}
+		}
+
 		if len(mayGiveEnemyScoreEdges[0]) > 0 {
 			for e := range canGetOneScoreEdges {
 				return map[Edge]struct{}{e: {}}
 			}
 		}
 
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-
-		canGetOneScoreEdgesLen := float64(len(canGetOneScoreEdges)) * 10.0
-		mayGiveEnemyScoreEdgesLen := float64(len(mayGiveEnemyScoreEdges[1]))
-
-		if r.Float64() < canGetOneScoreEdgesLen/(canGetOneScoreEdgesLen+mayGiveEnemyScoreEdgesLen) {
-			return canGetOneScoreEdges
-		} else {
-			return mayGiveEnemyScoreEdges[1]
+		better := make(map[Edge]struct{}, len(canGetOneScoreEdges)+len(mayGiveEnemyScoreEdges[1]))
+		for e := range canGetOneScoreEdges {
+			better[e] = struct{}{}
 		}
+
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		for e := range mayGiveEnemyScoreEdges[1] {
+			if r.Float64() < 0.2 {
+				better[e] = struct{}{}
+			}
+		}
+
+		return better
 	}
 
 	return nil
 }
 
+// 随机获取下一步的边
 func GetRandNextEdge(s Board) Edge {
 	edges := GetNextEdges(s)
 	for e := range edges {
@@ -83,6 +95,7 @@ func GetRandNextEdge(s Board) Edge {
 	panic("func GetRandNextEdge(s Board) Edge Fail")
 }
 
+// 生成最佳边
 func GenerateBestEdge(board Board) (bestEdge Edge) {
 	nextEdges := GetNextEdges(board)
 	if len(nextEdges) == 1 {
