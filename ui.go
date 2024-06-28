@@ -12,33 +12,29 @@ import (
 	"time"
 )
 
-// 定义棋盘UI的常量
 var (
-	DotDistance = float32(75) // 点之间的距离
-	DotWidth    = float32(15) // 点的宽度
-	DotMargin   = float32(50) // 棋盘边距
+	DotDistance = float32(75)
+	DotWidth    = float32(15)
+	DotMargin   = float32(50)
 
-	EdgeFilledColor       = color.RGBA{R: 128, G: 128, B: 128, A: 128} // 边的颜色
-	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}  // 玩家1的高亮颜色
-	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}  // 玩家2的高亮颜色
+	EdgeFilledColor       = color.RGBA{R: 128, G: 128, B: 128, A: 128}
+	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}
+	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}
 
-	TipColor = color.NRGBA{R: 255, G: 255, B: 30, A: 50} // 提示颜色
+	TipColor = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
 
-	Player1FilledColor = color.NRGBA{R: 30, G: 30, B: 128, A: 128} // 玩家1填充颜色
-	Player2FilledColor = color.NRGBA{R: 128, G: 30, B: 30, A: 128} // 玩家2填充颜色
+	Player1FilledColor = color.NRGBA{R: 30, G: 30, B: 128, A: 128}
+	Player2FilledColor = color.NRGBA{R: 128, G: 30, B: 30, A: 128}
 
-	BoxSize = DotDistance - DotWidth // 方块的大小
+	BoxSize = DotDistance - DotWidth
 
-	mainWindowSize = DotDistance*float32(BoardSize) + DotMargin // 主窗口大小
+	mainWindowSize = DotDistance*float32(BoardSize) + DotMargin
 )
 
-// 转换坐标
 func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
 
-// 获取点的坐标
 func getDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
 
-// 创建点的画布元素
 func NewDotCanvas(d Dot) (newDotCanvas *canvas.Circle) {
 	newDotCanvas = canvas.NewCircle(color.White)
 	newDotCanvas.Resize(fyne.NewSize(DotWidth, DotWidth))
@@ -46,7 +42,6 @@ func NewDotCanvas(d Dot) (newDotCanvas *canvas.Circle) {
 	return
 }
 
-// 创建边的画布元素
 func NewEdgeCanvas(e Edge) *canvas.Line {
 	x1 := transPosition(e.Dot1().X()) + DotWidth/2
 	y1 := transPosition(e.Dot1().Y()) + DotWidth/2
@@ -60,7 +55,6 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 	return newEdge
 }
 
-// 创建方块的画布元素
 func NewBox(s Box) *canvas.Rectangle {
 	d := Dot(s)
 	x := transPosition(d.X()) + DotWidth
@@ -72,7 +66,6 @@ func NewBox(s Box) *canvas.Rectangle {
 	return r
 }
 
-// BoardUI 定义棋盘UI结构体
 type BoardUI struct {
 	board        Board
 	aiPlayer1    bool
@@ -88,7 +81,6 @@ type BoardUI struct {
 	mu           sync.Mutex
 }
 
-// 颜色插值函数
 func interpolateColor(c1, c2 color.Color, t float64) color.Color {
 	r1, g1, b1, a1 := c1.RGBA()
 	r2, g2, b2, a2 := c2.RGBA()
@@ -101,7 +93,6 @@ func interpolateColor(c1, c2 color.Color, t float64) color.Color {
 	return color.RGBA{R: r, G: g, B: b, A: a}
 }
 
-// 新建棋盘UI
 func NewBoardUI() (board *BoardUI) {
 	background := canvas.NewRectangle(color.Black)
 	background.Move(fyne.NewPos(0, 0))
@@ -117,14 +108,12 @@ func NewBoardUI() (board *BoardUI) {
 		signChan:  make(chan struct{}, 1),
 	}
 
-	// 初始化方块UI
 	for _, b := range Boxes {
 		boxUi := NewBox(b)
 		board.boxes[b] = boxUi
 		board.Container.Add(boxUi)
 	}
 
-	// 初始化边UI和按钮
 	for _, e := range EdgesMap {
 		edgeUi := NewEdgeCanvas(e)
 		board.edges[e] = edgeUi
@@ -155,13 +144,11 @@ func NewBoardUI() (board *BoardUI) {
 		board.Container.Add(board.buttons[e])
 	}
 
-	// 初始化点UI
 	for _, d := range Dots {
 		dotUi := NewDotCanvas(d)
 		board.Container.Add(dotUi)
 	}
 
-	// 启动AI处理协程
 	go func() {
 		for range board.signChan {
 			e := GenerateBestEdge(board.board)
@@ -172,26 +159,22 @@ func NewBoardUI() (board *BoardUI) {
 	return
 }
 
-// 添加边
 func (b *BoardUI) AddEdge(e Edge) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// 检查边是否已存在
 	if _, c := b.board[e]; c {
 		return
 	}
 
 	defer b.Container.Refresh()
 
-	// 根据当前玩家设置边的颜色
 	if b.nowTurn == Player1Turn {
 		b.edges[e].StrokeColor = Player1HighLightColor
 	} else {
 		b.edges[e].StrokeColor = Player2HighLightColor
 	}
 
-	// 计算得分
 	score := b.board.ObtainsScore(e)
 	if b.nowTurn == Player1Turn {
 		b.player1Score += score
@@ -199,7 +182,6 @@ func (b *BoardUI) AddEdge(e Edge) {
 		b.player2Score += score
 	}
 
-	// 获取获得的方块并填充颜色
 	boxes := b.board.ObtainsBoxes(e)
 	for _, box := range boxes {
 		if b.nowTurn == Player1Turn {
@@ -209,7 +191,6 @@ func (b *BoardUI) AddEdge(e Edge) {
 		}
 	}
 
-	// 记录操作日志
 	if b.nowTurn == Player1Turn {
 		colog.Infof("Player1 Edge: %s Player1 Score: %d, Player2 Score: %d", e.ToString(), b.player1Score, b.player2Score)
 	}
@@ -217,20 +198,16 @@ func (b *BoardUI) AddEdge(e Edge) {
 		colog.Infof("Player2 Edge: %s Player1 Score: %d, Player2 Score: %d", e.ToString(), b.player1Score, b.player2Score)
 	}
 
-	// 隐藏已点击的按钮
 	if button, c := b.buttons[e]; c {
 		button.Hide()
 	}
 
-	// 如果没有得分，则切换玩家
 	if score == 0 {
 		b.nowTurn.Change()
 	}
 
-	// 更新棋盘状态
 	b.board[e] = struct{}{}
 
-	// 检查是否有接近完成的方块并提示
 	for _, box := range Boxes {
 		edgesCountInBox := b.board.EdgesCountInBox(box)
 		if edgesCountInBox == 3 {
@@ -266,7 +243,6 @@ func (b *BoardUI) AddEdge(e Edge) {
 		}
 	}
 
-	// 检查游戏是否结束
 	if len(EdgesMap) == len(b.board) {
 		switch {
 		case b.player1Score > b.player2Score:
@@ -281,7 +257,6 @@ func (b *BoardUI) AddEdge(e Edge) {
 		os.Exit(0)
 	}
 
-	// 启动AI
 	if b.aiPlayer1 && b.nowTurn == Player1Turn {
 		b.signChan <- struct{}{}
 	} else if b.aiPlayer2 && b.nowTurn == Player2Turn {
