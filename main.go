@@ -27,6 +27,7 @@ func main() {
 
 	mainWindow.Resize(fyne.NewSize(mainWindowSize, mainWindowSize))
 	mainWindow.SetContent(board.Container)
+	mainWindow.SetFixedSize(true)
 
 	if board.aiPlayer1 {
 		go func() {

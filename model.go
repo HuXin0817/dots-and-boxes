@@ -51,13 +51,24 @@ func (e Edge) ToString() string {
 	return fmt.Sprintf("(%d, %d) => (%d, %d)", e.Dot1().X(), e.Dot1().Y(), e.Dot2().X(), e.Dot2().Y())
 }
 
+var EdgeNearBoxes = make(map[Edge][]Box)
+
 func (e Edge) NearBoxes() []Box {
+	if boxes, c := EdgeNearBoxes[e]; c {
+		return boxes
+	}
+
 	x := e.Dot2().X() - 1
 	y := e.Dot2().Y() - 1
 	if x >= 0 && y >= 0 {
-		return []Box{Box(e.Dot1()), Box(NewDot(x, y))}
+		boxes := []Box{Box(e.Dot1()), Box(NewDot(x, y))}
+		EdgeNearBoxes[e] = boxes
+		return boxes
 	}
-	return []Box{Box(e.Dot1())}
+
+	boxes := []Box{Box(e.Dot1())}
+	EdgeNearBoxes[e] = boxes
+	return boxes
 }
 
 var EdgesMap = func() (Edges []Edge) {
@@ -75,7 +86,13 @@ var EdgesMap = func() (Edges []Edge) {
 	return
 }()
 
+var BoxEdges = make(map[Box][]Edge)
+
 func (b Box) Edges() []Edge {
+	if edges, c := BoxEdges[b]; c {
+		return edges
+	}
+
 	x := Dot(b).X()
 	y := Dot(b).Y()
 
@@ -84,12 +101,15 @@ func (b Box) Edges() []Edge {
 	D01 := NewDot(x, y+1)
 	D11 := NewDot(x+1, y+1)
 
-	return []Edge{
+	edges := []Edge{
 		NewEdge(D00, D01),
 		NewEdge(D00, D10),
 		NewEdge(D10, D11),
 		NewEdge(D01, D11),
 	}
+
+	BoxEdges[b] = edges
+	return edges
 }
 
 var Boxes = func() (Boxes []Box) {

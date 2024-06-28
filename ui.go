@@ -90,7 +90,7 @@ func interpolateColor(c1, c2 color.Color, t float64) color.Color {
 	b := uint8((float64(b1)*(1-t) + float64(b2)*t) / 256)
 	a := uint8((float64(a1)*(1-t) + float64(a2)*t) / 256)
 
-	return color.RGBA{r, g, b, a}
+	return color.RGBA{R: r, G: g, B: b, A: a}
 }
 
 func NewBoardUI() (board *BoardUI) {

@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	SearchTime = int(2e6)
-	Goroutines = int(32)
+	SearchTime = int(1e7)
+	Goroutines = int(64)
 )
 
 func GetNextEdges(s Board) map[Edge]struct{} {
@@ -59,20 +59,19 @@ func GetNextEdges(s Board) map[Edge]struct{} {
 				return map[Edge]struct{}{e: {}}
 			}
 		}
-		if len(mayGiveEnemyScoreEdges[1]) > 0 {
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-			canGetOneScoreEdgesLen := float64(len(canGetOneScoreEdges)) * 10.0
-			mayGiveEnemyScoreEdgesLen := float64(len(mayGiveEnemyScoreEdges[1]))
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-			if r.Float64() < canGetOneScoreEdgesLen/(canGetOneScoreEdgesLen+mayGiveEnemyScoreEdgesLen) {
-				return canGetOneScoreEdges
-			} else {
-				return mayGiveEnemyScoreEdges[1]
-			}
+		canGetOneScoreEdgesLen := float64(len(canGetOneScoreEdges)) * 10.0
+		mayGiveEnemyScoreEdgesLen := float64(len(mayGiveEnemyScoreEdges[1]))
+
+		if r.Float64() < canGetOneScoreEdgesLen/(canGetOneScoreEdgesLen+mayGiveEnemyScoreEdgesLen) {
+			return canGetOneScoreEdges
+		} else {
+			return mayGiveEnemyScoreEdges[1]
 		}
-		return canGetOneScoreEdges
 	}
+
 	return nil
 }
 
@@ -95,10 +94,6 @@ func GenerateBestEdge(board Board) (bestEdge Edge) {
 	var mu sync.Mutex
 	sumScore := make(map[Edge]int, len(nextEdges))
 	searchTime := make(map[Edge]int, len(nextEdges))
-	for e := range nextEdges {
-		searchTime[e] = 0
-		sumScore[e] = 0
-	}
 
 	var t atomic.Int64
 	var wg sync.WaitGroup
