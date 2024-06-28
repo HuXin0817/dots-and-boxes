@@ -16,7 +16,6 @@ const (
 var mainWindow = app.New().NewWindow("Dots and Boxes")
 
 func main() {
-
 	if err := colog.OpenLog("gamelog/" + time.Now().Format(time.DateTime) + ".log"); err != nil {
 		panic(err)
 	}

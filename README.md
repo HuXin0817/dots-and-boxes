@@ -28,14 +28,13 @@ Carlo simulation to determine the best moves.
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/dots-and-boxes.git
+    git clone https://github.com/HuXin0817/dots-and-boxes.git
     cd dots-and-boxes
     ```
 
 2. Install dependencies:
     ```sh
-    go get fyne.io/fyne/v2
-    go get github.com/HuXin0817/colog
+    go mod tidy
     ```
 
 3. Build and run the application:
@@ -73,7 +72,7 @@ This project is licensed under the terms of the MIT license.
 
 ## Contact
 
-For any questions or suggestions, please contact [your-email@example.com](mailto:your-email@example.com).
+For any questions or suggestions, please contact [202219120810@stu.cdut.edu.cn](mailto:202219120810@stu.cdut.edu.cn).
 
 ### Notes:
 
@@ -84,6 +83,3 @@ For any questions or suggestions, please contact [your-email@example.com](mailto
 5. **License**: Specify the license under which the project is distributed.
 6. **Acknowledgements**: Give credit to the libraries and tools used.
 7. **Contact**: Provide a way for users to reach out with questions or suggestions.
-
-Make sure to replace placeholders like `yourusername` and `your-email@example.com` with your actual GitHub username and
-contact email.
