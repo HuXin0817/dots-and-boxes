@@ -587,7 +587,7 @@ func main() {
 
 	if AIPlayer1 {
 		go func() {
-			time.Sleep(time.Second >> 1)
+			time.Sleep(500 * time.Millisecond)
 			AddEdge(GetBestEdge())
 		}()
 	}
