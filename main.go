@@ -67,7 +67,7 @@ var (
 	Player1Score          = 0
 	Player2Score          = 0
 	AssessTable           = make(map[string]map[Edge]AssessData)
-	AssessFile            = "assess_table.json"
+	AssessFile            = "assess.json"
 	GlobalBoard           = make(Board)
 )
 
