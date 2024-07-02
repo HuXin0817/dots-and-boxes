@@ -2,6 +2,12 @@ package main
 
 import (
 	"fmt"
+	"image/color"
+	"os"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -9,92 +15,63 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/HuXin0817/colog"
 	"github.com/bytedance/sonic"
-	"image/color"
-	"os"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
-const (
-	BoardSize      = 6
-	BoardSizePower = BoardSize * BoardSize
-
-	AIPlayer1 = true
-	AIPlayer2 = true
-
-	DotDistance    = float32(75)
-	DotWidth       = float32(15)
-	DotMargin      = float32(50)
-	BoxSize        = DotDistance - DotWidth
-	MainWindowSize = DotDistance*float32(BoardSize) + DotMargin
-
-	Goroutines = 32
-	SearchTime = 1e7
+type (
+	Turn       int
+	Dot        int
+	Box        int
+	Edge       int
+	Board      map[Edge]struct{}
+	assessData struct {
+		SumScore   float64 `json:"s"`
+		SearchTime float64 `json:"t"`
+	}
 )
-
-type Turn int
 
 const (
 	Player1Turn Turn = 1
 	Player2Turn Turn = -1
 )
 
-func (t *Turn) Change() { *t = -*t }
-
-type (
-	Dot   int
-	Box   int
-	Edge  int
-	Board map[Edge]struct{}
-
-	AssessData struct {
-		SumScore   float64 `json:"s"`
-		SearchTime float64 `json:"t"`
-	}
+const (
+	BoardSize      = 6
+	BoardSizePower = BoardSize * BoardSize
+	AIPlayer1      = true
+	AIPlayer2      = true
+	DotDistance    = 75
+	DotWidth       = 15
+	DotMargin      = 50
+	BoxSize        = DotDistance - DotWidth
+	MainWindowSize = DotDistance*BoardSize + DotMargin
+	Goroutines     = 32
+	SearchTime     = 1e6
 )
 
 var (
-	GlobalBoard = make(Board)
-
 	EdgeFilledColor       = color.RGBA{R: 128, G: 128, B: 128, A: 128}
 	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}
 	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}
 	TipColor              = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
 	Player1FilledColor    = color.NRGBA{R: 30, G: 30, B: 128, A: 128}
 	Player2FilledColor    = color.NRGBA{R: 128, G: 30, B: 30, A: 128}
-
-	signChan = make(chan struct{}, 1)
-	mu       sync.Mutex
-
-	NowTurn      = Player1Turn
-	Player1Score = 0
-	Player2Score = 0
-	AssessTable  = make(map[string]map[Edge]AssessData)
-	AssessFile   = "assess_table.json"
-
-	EdgesUICanvases  = make(map[Edge]*canvas.Line)
-	BoxesUICanvases  = make(map[Box]*canvas.Rectangle)
-	Buttons          = make(map[Edge]*widget.Button)
-	BoxesFilledColor = make(map[Box]color.Color)
-	Container        *fyne.Container
-	MainWindow       = app.New().NewWindow("Dots and Boxes")
+	EdgesUICanvases       = make(map[Edge]*canvas.Line)
+	BoxesUICanvases       = make(map[Box]*canvas.Rectangle)
+	Buttons               = make(map[Edge]*widget.Button)
+	BoxesFilledColor      = make(map[Box]color.Color)
+	Container             *fyne.Container
+	MainWindow            = app.New().NewWindow("Dots and Boxes")
+	SignChan              = make(chan struct{}, 1)
+	mu                    sync.Mutex
+	NowTurn               = Player1Turn
+	Player1Score          = 0
+	Player2Score          = 0
+	AssessTable           = make(map[string]map[Edge]assessData)
+	AssessFile            = "assess_table.json"
+	GlobalBoard           = make(Board)
 )
 
-func init() {
-	if len(os.Args) == 2 {
-		AssessFile = os.Args[1]
-	}
-
-	file, err := os.ReadFile(AssessFile)
-	if err != nil {
-		return
-	}
-
-	if err = sonic.Unmarshal(file, &AssessTable); err != nil {
-		panic(err)
-	}
-}
+func (t *Turn) Change() { *t = -*t }
 
 func NewDot(x, y int) Dot { return Dot(x*BoardSize + y) }
 
@@ -115,12 +92,12 @@ func NewEdge(Dot1, Dot2 Dot) Edge {
 	if Dot1 > Dot2 {
 		Dot1, Dot2 = Dot2, Dot1
 	}
-	return Edge(Dot1*Dot(BoardSizePower) + Dot2)
+	return Edge(Dot1*BoardSizePower + Dot2)
 }
 
-func (e Edge) Dot1() Dot { return Dot(e) / Dot(BoardSizePower) }
+func (e Edge) Dot1() Dot { return Dot(e) / BoardSizePower }
 
-func (e Edge) Dot2() Dot { return Dot(e) % Dot(BoardSizePower) }
+func (e Edge) Dot2() Dot { return Dot(e) % BoardSizePower }
 
 func (e Edge) ToString() string {
 	return fmt.Sprintf("(%d, %d) => (%d, %d)", e.Dot1().X(), e.Dot1().Y(), e.Dot2().X(), e.Dot2().Y())
@@ -172,19 +149,16 @@ var BoxEdges = func() map[Box][]Edge {
 	for _, b := range Boxes {
 		x := Dot(b).X()
 		y := Dot(b).Y()
-
 		D00 := NewDot(x, y)
 		D10 := NewDot(x+1, y)
 		D01 := NewDot(x, y+1)
 		D11 := NewDot(x+1, y+1)
-
 		edges := []Edge{
 			NewEdge(D00, D01),
 			NewEdge(D00, D10),
 			NewEdge(D10, D11),
 			NewEdge(D01, D11),
 		}
-
 		BoxEdges[b] = edges
 	}
 	return BoxEdges
@@ -234,7 +208,6 @@ func (b Board) ObtainsScore(e Edge) (count int) {
 	if _, c := b[e]; c {
 		return
 	}
-
 	boxes := e.NearBoxes()
 	for _, box := range boxes {
 		if b.EdgesCountInBox(box) == 3 {
@@ -248,7 +221,6 @@ func (b Board) ObtainsBoxes(e Edge) (obtainsBoxes []Box) {
 	if _, c := b[e]; c {
 		return
 	}
-
 	boxes := e.NearBoxes()
 	for _, box := range boxes {
 		if b.EdgesCountInBox(box) == 3 {
@@ -262,11 +234,11 @@ func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
 
 func getDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
 
-func NewDotCanvas(d Dot) (newDotCanvas *canvas.Circle) {
-	newDotCanvas = canvas.NewCircle(color.White)
+func NewDotCanvas(d Dot) *canvas.Circle {
+	newDotCanvas := canvas.NewCircle(color.White)
 	newDotCanvas.Resize(fyne.NewSize(DotWidth, DotWidth))
 	newDotCanvas.Move(fyne.NewPos(getDotPosition(d)))
-	return
+	return newDotCanvas
 }
 
 func NewEdgeCanvas(e Edge) *canvas.Line {
@@ -274,7 +246,6 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 	y1 := transPosition(e.Dot1().Y()) + DotWidth/2
 	x2 := transPosition(e.Dot2().X()) + DotWidth/2
 	y2 := transPosition(e.Dot2().Y()) + DotWidth/2
-
 	newEdge := canvas.NewLine(EdgeFilledColor)
 	newEdge.Position1 = fyne.NewPos(x1, y1)
 	newEdge.Position2 = fyne.NewPos(x2, y2)
@@ -286,7 +257,6 @@ func NewBox(s Box) *canvas.Rectangle {
 	d := Dot(s)
 	x := transPosition(d.X()) + DotWidth
 	y := transPosition(d.Y()) + DotWidth
-
 	r := canvas.NewRectangle(color.Black)
 	r.Move(fyne.NewPos(x, y))
 	r.Resize(fyne.NewSize(BoxSize, BoxSize))
@@ -296,60 +266,43 @@ func NewBox(s Box) *canvas.Rectangle {
 func interpolateColor(c1, c2 color.Color, t float64) color.Color {
 	r1, g1, b1, a1 := c1.RGBA()
 	r2, g2, b2, a2 := c2.RGBA()
-
 	r := uint8((float64(r1)*(1-t) + float64(r2)*t) / 256)
 	g := uint8((float64(g1)*(1-t) + float64(g2)*t) / 256)
 	b := uint8((float64(b1)*(1-t) + float64(b2)*t) / 256)
 	a := uint8((float64(a1)*(1-t) + float64(a2)*t) / 256)
-
 	return color.RGBA{R: r, G: g, B: b, A: a}
 }
 
 func AddEdge(e Edge) {
 	mu.Lock()
 	defer mu.Unlock()
-
 	defer Container.Refresh()
-	if NowTurn == Player1Turn {
-		EdgesUICanvases[e].StrokeColor = Player1HighLightColor
-	} else {
-		EdgesUICanvases[e].StrokeColor = Player2HighLightColor
-	}
-
-	score := GlobalBoard.ObtainsScore(e)
-	if NowTurn == Player1Turn {
-		Player1Score += score
-	} else {
-		Player2Score += score
-	}
-
 	boxes := GlobalBoard.ObtainsBoxes(e)
-	for _, box := range boxes {
-		if NowTurn == Player1Turn {
+	score := len(boxes)
+	if NowTurn == Player1Turn {
+		for _, box := range boxes {
 			BoxesUICanvases[box].FillColor = Player1FilledColor
 			BoxesFilledColor[box] = Player1FilledColor
-		} else {
+		}
+		EdgesUICanvases[e].StrokeColor = Player1HighLightColor
+		Player1Score += score
+		colog.Infof("Step: %d Player1 Edge: %s Player1 Score: %d, Player2 Score: %d", len(GlobalBoard), e.ToString(), Player1Score, Player2Score)
+	} else {
+		for _, box := range boxes {
 			BoxesUICanvases[box].FillColor = Player2FilledColor
 			BoxesFilledColor[box] = Player2FilledColor
 		}
-	}
-
-	if NowTurn == Player1Turn {
-		colog.Infof("Step: %d Player1 Edge: %s Player1 Score: %d, Player2 Score: %d", len(GlobalBoard), e.ToString(), Player1Score, Player2Score)
-	} else {
+		EdgesUICanvases[e].StrokeColor = Player2HighLightColor
+		Player2Score += score
 		colog.Infof("Step: %d Player2 Edge: %s Player1 Score: %d, Player2 Score: %d", len(GlobalBoard), e.ToString(), Player1Score, Player2Score)
 	}
-
 	if button, c := Buttons[e]; c {
 		button.Hide()
 	}
-
 	if score == 0 {
 		NowTurn.Change()
 	}
-
 	GlobalBoard[e] = struct{}{}
-
 	for _, box := range Boxes {
 		edgesCountInBox := GlobalBoard.EdgesCountInBox(box)
 		if edgesCountInBox == 3 {
@@ -359,7 +312,6 @@ func AddEdge(e Edge) {
 				step := 100
 				d := time.Second / time.Duration(step)
 				nowTurn := len(GlobalBoard)
-
 				for {
 					for i := 0; i <= step; i++ {
 						if nowTurn != len(GlobalBoard) {
@@ -367,7 +319,6 @@ func AddEdge(e Edge) {
 							BoxesUICanvases[box].Refresh()
 							return
 						}
-
 						time.Sleep(d)
 						t := float64(i) / float64(step)
 						BoxesUICanvases[box].FillColor = interpolateColor(startColor, endColor, t)
@@ -379,7 +330,6 @@ func AddEdge(e Edge) {
 							BoxesUICanvases[box].Refresh()
 							return
 						}
-
 						time.Sleep(d)
 						t := float64(i) / float64(step)
 						BoxesUICanvases[box].FillColor = interpolateColor(endColor, startColor, t)
@@ -389,7 +339,6 @@ func AddEdge(e Edge) {
 			}()
 		}
 	}
-
 	if len(EdgesMap) == len(GlobalBoard) {
 		switch {
 		case Player1Score > Player2Score:
@@ -399,22 +348,18 @@ func AddEdge(e Edge) {
 		case Player1Score == Player2Score:
 			colog.Infof("Draw!")
 		}
-
 		time.Sleep(time.Second * 2)
 		os.Exit(0)
 	}
-
 	if AIPlayer1 && NowTurn == Player1Turn {
-		signChan <- struct{}{}
+		SignChan <- struct{}{}
 	} else if AIPlayer2 && NowTurn == Player2Turn {
-		signChan <- struct{}{}
+		SignChan <- struct{}{}
 	}
 }
 
-func GetNextEdges(board Board) Edge {
+func GetNextEdges(board Board) (bestEdge Edge) {
 	minEnemyCanGetScore := 3
-	var minEnemyCanGetEdge Edge
-
 	for e := range EdgesMap {
 		if _, c := board[e]; !c {
 			if score := board.ObtainsScore(e); score > 0 {
@@ -429,47 +374,32 @@ func GetNextEdges(board Board) Edge {
 				}
 				if minEnemyCanGetScore > s {
 					minEnemyCanGetScore = s
-					minEnemyCanGetEdge = e
+					bestEdge = e
 				}
 			}
 		}
 	}
-
-	return minEnemyCanGetEdge
+	return
 }
 
 func GetBestEdge() (bestEdge Edge) {
-	var mutex sync.Mutex
 	boardStr := GlobalBoard.ToString()
 	if _, c := AssessTable[boardStr]; !c {
-		AssessTable[boardStr] = make(map[Edge]AssessData)
+		AssessTable[boardStr] = make(map[Edge]assessData)
 	}
-
 	assessDataTable := AssessTable[boardStr]
-
-	sonsSumSearchTime := 0
-	for _, v := range assessDataTable {
-		sonsSumSearchTime += int(v.SearchTime)
-	}
-
-	freeEdgeCount := len(Edges) - len(GlobalBoard)
-	searchTime := SearchTime / freeEdgeCount
-	if sonsSumSearchTime >= searchTime {
-		searchTime /= 1e3
-	}
-
 	var t atomic.Int64
 	var wg sync.WaitGroup
+	var latch sync.Mutex
 	wg.Add(Goroutines)
 	for range Goroutines {
 		go func() {
 			defer wg.Done()
-			for int(t.Load()) < searchTime {
+			for t.Load() < SearchTime {
 				b := NewBoard(GlobalBoard)
 				turn := Player1Turn
-				var firstEdge Edge
-				score := 0.0
-
+				firstEdge := Edge(0)
+				score := 0
 				for len(b) < len(EdgesMap) {
 					t.Add(1)
 					edge := GetNextEdges(b)
@@ -477,25 +407,22 @@ func GetBestEdge() (bestEdge Edge) {
 						firstEdge = edge
 					}
 					s := b.ObtainsScore(edge)
-					score += float64(turn) * float64(s)
+					score += int(turn) * s
 					if s == 0 {
 						turn.Change()
 					}
 					b[edge] = struct{}{}
 				}
-
-				mutex.Lock()
-				assessDataTable[firstEdge] = AssessData{
-					SumScore:   assessDataTable[firstEdge].SumScore + score,
+				latch.Lock()
+				assessDataTable[firstEdge] = assessData{
+					SumScore:   assessDataTable[firstEdge].SumScore + float64(score),
 					SearchTime: assessDataTable[firstEdge].SearchTime + 1,
 				}
-				mutex.Unlock()
+				latch.Unlock()
 			}
 		}()
 	}
-
 	wg.Wait()
-
 	bestScore := -1e9
 	for e, data := range assessDataTable {
 		avgScore := data.SumScore / data.SearchTime
@@ -504,38 +431,42 @@ func GetBestEdge() (bestEdge Edge) {
 			bestScore = avgScore
 		}
 	}
-
 	AssessTable[boardStr] = assessDataTable
 	j, err := sonic.Marshal(AssessTable)
 	if err != nil {
 		panic(err)
 	}
-
 	if err = os.WriteFile(AssessFile, j, 0644); err != nil {
 		panic(err)
 	}
-
 	return
 }
 
 func main() {
-	if err := colog.OpenLog("gamelog/" + time.Now().Format(time.DateTime) + ".log"); err != nil {
+	if len(os.Args) == 2 {
+		AssessFile = os.Args[1]
+	}
+	file, err := os.ReadFile(AssessFile)
+	if err != nil {
+		return
+	}
+	if err := sonic.Unmarshal(file, &AssessTable); err != nil {
 		panic(err)
 	}
-
+	logFile := fmt.Sprintf("gamelog/%s.log", time.Now().Format(time.DateTime))
+	if err := colog.OpenLog(logFile); err != nil {
+		panic(err)
+	}
 	background := canvas.NewRectangle(color.Black)
 	background.Move(fyne.NewPos(0, 0))
 	background.Resize(fyne.NewSize(1e10, 1e10))
-
 	Container = container.NewWithoutLayout(background)
-
 	for _, b := range Boxes {
 		boxUi := NewBox(b)
 		BoxesUICanvases[b] = boxUi
 		Container.Add(boxUi)
 		BoxesFilledColor[b] = color.Black
 	}
-
 	for e := range EdgesMap {
 		edgeUi := NewEdgeCanvas(e)
 		EdgesUICanvases[e] = edgeUi
@@ -549,7 +480,6 @@ func main() {
 			}
 			AddEdge(e)
 		})
-
 		var SizeX, SizeY float32
 		if e.Dot1().X() == e.Dot2().X() {
 			SizeX = DotWidth
@@ -558,21 +488,25 @@ func main() {
 			SizeX = DotDistance
 			SizeY = DotWidth
 		}
-
 		Buttons[e].Resize(fyne.NewSize(SizeX, SizeY))
 		PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - Buttons[e].Size().Width/2 + DotWidth/2
 		PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - Buttons[e].Size().Height/2 + DotWidth/2
 		Buttons[e].Move(fyne.NewPos(PosX, PosY))
 		Container.Add(Buttons[e])
 	}
-
 	for _, d := range Dots {
 		dotUi := NewDotCanvas(d)
 		Container.Add(dotUi)
 	}
-
+	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
+	MainWindow.SetContent(Container)
+	MainWindow.SetFixedSize(true)
 	go func() {
-		for range signChan {
+		if AIPlayer1 {
+			time.Sleep(500 * time.Millisecond)
+			AddEdge(GetBestEdge())
+		}
+		for range SignChan {
 			if AIPlayer1 && NowTurn == Player1Turn {
 				AddEdge(GetBestEdge())
 			} else if AIPlayer2 && NowTurn == Player2Turn {
@@ -580,18 +514,6 @@ func main() {
 			}
 		}
 	}()
-
-	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
-	MainWindow.SetContent(Container)
-	MainWindow.SetFixedSize(true)
-
-	if AIPlayer1 {
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			AddEdge(GetBestEdge())
-		}()
-	}
-
 	colog.Info("GAME START!")
 	MainWindow.ShowAndRun()
 }
