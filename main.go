@@ -142,8 +142,8 @@ var (
 			edges := []Edge{
 				NewEdge(D00, D01),
 				NewEdge(D00, D10),
-				NewEdge(D10, D11),
 				NewEdge(D01, D11),
+				NewEdge(D10, D11),
 			}
 			BoxEdges[b] = edges
 		}
@@ -159,12 +159,7 @@ func (d Dot) X() int { return int(d) / BoardSize }
 
 func (d Dot) Y() int { return int(d) % BoardSize }
 
-func NewEdge(Dot1, Dot2 Dot) Edge {
-	if Dot1 > Dot2 {
-		Dot1, Dot2 = Dot2, Dot1
-	}
-	return Edge(Dot1*BoardSizePower + Dot2)
-}
+func NewEdge(Dot1, Dot2 Dot) Edge { return Edge(Dot1*BoardSizePower + Dot2) }
 
 func (e Edge) Dot1() Dot { return Dot(e) / BoardSizePower }
 
