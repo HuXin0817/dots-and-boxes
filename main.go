@@ -17,7 +17,9 @@ import (
 )
 
 const (
-	BoardSize = 6
+	BoardSize      = 6
+	BoardSizePower = BoardSize * BoardSize
+
 	AIPlayer1 = true
 	AIPlayer2 = true
 
@@ -28,50 +30,8 @@ const (
 	MainWindowSize = DotDistance*float32(BoardSize) + DotMargin
 
 	Goroutines = 32
+	SearchTime = 1e7
 )
-
-var (
-	EdgeFilledColor       = color.RGBA{R: 128, G: 128, B: 128, A: 128}
-	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}
-	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}
-	TipColor              = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
-	Player1FilledColor    = color.NRGBA{R: 30, G: 30, B: 128, A: 128}
-	Player2FilledColor    = color.NRGBA{R: 128, G: 30, B: 30, A: 128}
-
-	GlobalBoard      = make(Board)
-	NowTurn          = Player1Turn
-	EdgesUICanvases  = make(map[Edge]*canvas.Line)
-	BoxesUICanvases  = make(map[Box]*canvas.Rectangle)
-	Buttons          = make(map[Edge]*widget.Button)
-	signChan         = make(chan struct{}, 1)
-	BoxesFilledColor = make(map[Box]color.Color)
-	Container        *fyne.Container
-	Player1Score     = 0
-	Player2Score     = 0
-
-	mu sync.Mutex
-)
-
-type AssessTable map[string]map[Edge]AssessData
-
-var assessTable = make(AssessTable)
-
-var assessFile = "assess_table.json"
-
-func init() {
-	if len(os.Args) == 2 {
-		assessFile = os.Args[1]
-	}
-
-	file, err := os.ReadFile(assessFile)
-	if err != nil {
-		return
-	}
-
-	if err = sonic.Unmarshal(file, &assessTable); err != nil {
-		panic(err)
-	}
-}
 
 type Turn int
 
@@ -83,14 +43,58 @@ const (
 func (t *Turn) Change() { *t = -*t }
 
 type (
-	Dot  int
-	Box  int
-	Edge int
-
+	Dot   int
+	Box   int
+	Edge  int
 	Board map[Edge]struct{}
+
+	AssessData struct {
+		SumScore   float64 `json:"s"`
+		SearchTime float64 `json:"t"`
+	}
 )
 
-const InvalidEdge Edge = 0
+var (
+	GlobalBoard = make(Board)
+
+	EdgeFilledColor       = color.RGBA{R: 128, G: 128, B: 128, A: 128}
+	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}
+	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}
+	TipColor              = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
+	Player1FilledColor    = color.NRGBA{R: 30, G: 30, B: 128, A: 128}
+	Player2FilledColor    = color.NRGBA{R: 128, G: 30, B: 30, A: 128}
+
+	signChan = make(chan struct{}, 1)
+	mu       sync.Mutex
+
+	NowTurn      = Player1Turn
+	Player1Score = 0
+	Player2Score = 0
+	AssessTable  = make(map[string]map[Edge]AssessData)
+	AssessFile   = "assess_table.json"
+
+	EdgesUICanvases  = make(map[Edge]*canvas.Line)
+	BoxesUICanvases  = make(map[Box]*canvas.Rectangle)
+	Buttons          = make(map[Edge]*widget.Button)
+	BoxesFilledColor = make(map[Box]color.Color)
+	Container        *fyne.Container
+	MainWindow       = app.New().NewWindow("Dots and Boxes")
+)
+
+func init() {
+	if len(os.Args) == 2 {
+		AssessFile = os.Args[1]
+	}
+
+	file, err := os.ReadFile(AssessFile)
+	if err != nil {
+		return
+	}
+
+	if err = sonic.Unmarshal(file, &AssessTable); err != nil {
+		panic(err)
+	}
+}
 
 func NewDot(x, y int) Dot { return Dot(x*BoardSize + y) }
 
@@ -106,8 +110,6 @@ var Dots = func() (Dots []Dot) {
 	}
 	return
 }()
-
-var BoardSizePower = BoardSize * BoardSize
 
 func NewEdge(Dot1, Dot2 Dot) Edge {
 	if Dot1 > Dot2 {
@@ -134,16 +136,13 @@ var EdgeNearBoxes = func() map[Edge][]Box {
 			edges[e] = boxes
 			continue
 		}
-
 		boxes := []Box{Box(e.Dot1())}
 		edges[e] = boxes
 	}
 	return edges
 }()
 
-func (e Edge) NearBoxes() []Box {
-	return EdgeNearBoxes[e]
-}
+func (e Edge) NearBoxes() []Box { return EdgeNearBoxes[e] }
 
 var Edges = func() (Edges []Edge) {
 	for i := 0; i < BoardSize; i++ {
@@ -160,20 +159,12 @@ var Edges = func() (Edges []Edge) {
 	return
 }()
 
-var EdgesMap = func() (Edges map[Edge]struct{}) {
-	Edges = make(map[Edge]struct{})
-	for i := 0; i < BoardSize; i++ {
-		for j := 0; j < BoardSize; j++ {
-			d := NewDot(i, j)
-			if i+1 < BoardSize {
-				Edges[NewEdge(d, NewDot(i+1, j))] = struct{}{}
-			}
-			if j+1 < BoardSize {
-				Edges[NewEdge(d, NewDot(i, j+1))] = struct{}{}
-			}
-		}
+var EdgesMap = func() map[Edge]struct{} {
+	EdgesMap := make(map[Edge]struct{})
+	for _, e := range Edges {
+		EdgesMap[e] = struct{}{}
 	}
-	return
+	return EdgesMap
 }()
 
 var BoxEdges = func() map[Box][]Edge {
@@ -199,9 +190,7 @@ var BoxEdges = func() map[Box][]Edge {
 	return BoxEdges
 }()
 
-func (b Box) Edges() []Edge {
-	return BoxEdges[b]
-}
+func (b Box) Edges() []Edge { return BoxEdges[b] }
 
 var Boxes = func() (Boxes []Box) {
 	for _, d := range Dots {
@@ -347,8 +336,7 @@ func AddEdge(e Edge) {
 
 	if NowTurn == Player1Turn {
 		colog.Infof("Step: %d Player1 Edge: %s Player1 Score: %d, Player2 Score: %d", len(GlobalBoard), e.ToString(), Player1Score, Player2Score)
-	}
-	if NowTurn == Player2Turn {
+	} else {
 		colog.Infof("Step: %d Player2 Edge: %s Player1 Score: %d, Player2 Score: %d", len(GlobalBoard), e.ToString(), Player1Score, Player2Score)
 	}
 
@@ -406,13 +394,13 @@ func AddEdge(e Edge) {
 		switch {
 		case Player1Score > Player2Score:
 			colog.Info("Player1 Win! Score:", Player1Score)
-		case Player2Score > Player1Score:
+		case Player1Score < Player2Score:
 			colog.Info("Player2 Win! Score:", Player2Score)
 		case Player1Score == Player2Score:
 			colog.Infof("Draw!")
 		}
 
-		time.Sleep(time.Second * 3)
+		time.Sleep(time.Second * 2)
 		os.Exit(0)
 	}
 
@@ -423,14 +411,9 @@ func AddEdge(e Edge) {
 	}
 }
 
-type AssessData struct {
-	SumScore   float64 `json:"s"`
-	SearchTime float64 `json:"t"`
-}
-
 func GetNextEdges(board Board) Edge {
 	minEnemyCanGetScore := 3
-	minEnemyCanGetEdge := InvalidEdge
+	var minEnemyCanGetEdge Edge
 
 	for e := range EdgesMap {
 		if _, c := board[e]; !c {
@@ -458,11 +441,11 @@ func GetNextEdges(board Board) Edge {
 func GetBestEdge() (bestEdge Edge) {
 	var mutex sync.Mutex
 	boardStr := GlobalBoard.ToString()
-	if _, c := assessTable[boardStr]; !c {
-		assessTable[boardStr] = make(map[Edge]AssessData)
+	if _, c := AssessTable[boardStr]; !c {
+		AssessTable[boardStr] = make(map[Edge]AssessData)
 	}
 
-	assessDataTable := assessTable[boardStr]
+	assessDataTable := AssessTable[boardStr]
 
 	sonsSumSearchTime := 0
 	for _, v := range assessDataTable {
@@ -470,9 +453,9 @@ func GetBestEdge() (bestEdge Edge) {
 	}
 
 	freeEdgeCount := len(Edges) - len(GlobalBoard)
-	SearchTime := 1e7 / freeEdgeCount
-	if sonsSumSearchTime >= SearchTime {
-		SearchTime = 1e4 / freeEdgeCount
+	searchTime := SearchTime / freeEdgeCount
+	if sonsSumSearchTime >= searchTime {
+		searchTime /= 1e3
 	}
 
 	var t atomic.Int64
@@ -481,7 +464,7 @@ func GetBestEdge() (bestEdge Edge) {
 	for range Goroutines {
 		go func() {
 			defer wg.Done()
-			for int(t.Load()) < (SearchTime) {
+			for int(t.Load()) < searchTime {
 				b := NewBoard(GlobalBoard)
 				turn := Player1Turn
 				var firstEdge Edge
@@ -522,20 +505,18 @@ func GetBestEdge() (bestEdge Edge) {
 		}
 	}
 
-	assessTable[boardStr] = assessDataTable
-	j, err := sonic.Marshal(assessTable)
+	AssessTable[boardStr] = assessDataTable
+	j, err := sonic.Marshal(AssessTable)
 	if err != nil {
 		panic(err)
 	}
 
-	if err = os.WriteFile(assessFile, j, 0644); err != nil {
+	if err = os.WriteFile(AssessFile, j, 0644); err != nil {
 		panic(err)
 	}
 
 	return
 }
-
-var mainWindow = app.New().NewWindow("Dots and Boxes")
 
 func main() {
 	if err := colog.OpenLog("gamelog/" + time.Now().Format(time.DateTime) + ".log"); err != nil {
@@ -600,9 +581,9 @@ func main() {
 		}
 	}()
 
-	mainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
-	mainWindow.SetContent(Container)
-	mainWindow.SetFixedSize(true)
+	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
+	MainWindow.SetContent(Container)
+	MainWindow.SetFixedSize(true)
 
 	if AIPlayer1 {
 		go func() {
@@ -612,5 +593,5 @@ func main() {
 	}
 
 	colog.Info("GAME START!")
-	mainWindow.ShowAndRun()
+	MainWindow.ShowAndRun()
 }
