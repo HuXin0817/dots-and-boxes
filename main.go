@@ -447,12 +447,8 @@ func main() {
 	if len(os.Args) == 2 {
 		AssessFile = os.Args[1]
 	}
-	file, err := os.ReadFile(AssessFile)
-	if err != nil {
-		return
-	}
-	if err := json.Unmarshal(file, &AssessTable); err != nil {
-		panic(err)
+	if file, err := os.ReadFile(AssessFile); err == nil {
+		json.Unmarshal(file, &AssessTable)
 	}
 	logFile := fmt.Sprintf("gamelog/%s.log", time.Now().Format(time.DateTime))
 	if err := colog.OpenLog(logFile); err != nil {
