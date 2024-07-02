@@ -23,7 +23,7 @@ type (
 	Box        int
 	Edge       int
 	Board      map[Edge]struct{}
-	assessData struct {
+	AssessData struct {
 		SumScore   float64 `json:"s"`
 		SearchTime float64 `json:"t"`
 	}
@@ -66,7 +66,7 @@ var (
 	NowTurn               = Player1Turn
 	Player1Score          = 0
 	Player2Score          = 0
-	AssessTable           = make(map[string]map[Edge]assessData)
+	AssessTable           = make(map[string]map[Edge]AssessData)
 	AssessFile            = "assess_table.json"
 	GlobalBoard           = make(Board)
 )
@@ -385,7 +385,7 @@ func GetNextEdges(board Board) (bestEdge Edge) {
 func GetBestEdge() (bestEdge Edge) {
 	boardStr := GlobalBoard.ToString()
 	if _, c := AssessTable[boardStr]; !c {
-		AssessTable[boardStr] = make(map[Edge]assessData)
+		AssessTable[boardStr] = make(map[Edge]AssessData)
 	}
 	assessDataTable := AssessTable[boardStr]
 	var t atomic.Int64
@@ -414,7 +414,7 @@ func GetBestEdge() (bestEdge Edge) {
 					b[edge] = struct{}{}
 				}
 				latch.Lock()
-				assessDataTable[firstEdge] = assessData{
+				assessDataTable[firstEdge] = AssessData{
 					SumScore:   assessDataTable[firstEdge].SumScore + float64(score),
 					SearchTime: assessDataTable[firstEdge].SearchTime + 1,
 				}
