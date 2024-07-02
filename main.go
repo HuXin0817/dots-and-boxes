@@ -340,6 +340,7 @@ func AddEdge(e Edge) {
 		}
 	}
 	if len(EdgesMap) == len(GlobalBoard) {
+		timer := time.NewTimer(2 * time.Second)
 		switch {
 		case Player1Score > Player2Score:
 			colog.Info("Player1 Win! Score:", Player1Score)
@@ -348,7 +349,14 @@ func AddEdge(e Edge) {
 		case Player1Score == Player2Score:
 			colog.Infof("Draw!")
 		}
-		time.Sleep(time.Second * 2)
+		j, err := json.Marshal(AssessTable)
+		if err != nil {
+			panic(err)
+		}
+		if err = os.WriteFile(AssessFile, j, 0644); err != nil {
+			panic(err)
+		}
+		<-timer.C
 		os.Exit(0)
 	}
 	if AIPlayer1 && NowTurn == Player1Turn {
@@ -432,13 +440,6 @@ func GetBestEdge() (bestEdge Edge) {
 		}
 	}
 	AssessTable[boardStr] = assessDataTable
-	j, err := json.Marshal(AssessTable)
-	if err != nil {
-		panic(err)
-	}
-	if err = os.WriteFile(AssessFile, j, 0644); err != nil {
-		panic(err)
-	}
 	return
 }
 
