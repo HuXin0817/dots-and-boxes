@@ -45,6 +45,7 @@ const (
 	DotMargin      = 50
 	BoxSize        = DotDistance - DotWidth
 	MainWindowSize = DotDistance*BoardSize + DotMargin
+	SearchTime     = 5e6
 	Goroutines     = 32
 )
 
