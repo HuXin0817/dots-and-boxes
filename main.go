@@ -46,7 +46,6 @@ const (
 	BoxSize        = DotDistance - DotWidth
 	MainWindowSize = DotDistance*BoardSize + DotMargin
 	Goroutines     = 32
-	SearchTime     = 1e6
 )
 
 var (
