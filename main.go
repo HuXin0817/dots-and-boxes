@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"image/color"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/HuXin0817/colog"
-	"github.com/bytedance/sonic"
 )
 
 type (
@@ -432,7 +432,7 @@ func GetBestEdge() (bestEdge Edge) {
 		}
 	}
 	AssessTable[boardStr] = assessDataTable
-	j, err := sonic.Marshal(AssessTable)
+	j, err := json.Marshal(AssessTable)
 	if err != nil {
 		panic(err)
 	}
@@ -450,7 +450,7 @@ func main() {
 	if err != nil {
 		return
 	}
-	if err := sonic.Unmarshal(file, &AssessTable); err != nil {
+	if err := json.Unmarshal(file, &AssessTable); err != nil {
 		panic(err)
 	}
 	logFile := fmt.Sprintf("gamelog/%s.log", time.Now().Format(time.DateTime))
