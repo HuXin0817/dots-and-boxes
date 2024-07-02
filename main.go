@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -450,7 +451,7 @@ func main() {
 	if file, err := os.ReadFile(AssessFile); err == nil {
 		json.Unmarshal(file, &AssessTable)
 	}
-	logFile := fmt.Sprintf("gamelog/%s.log", time.Now().Format(time.DateTime))
+	logFile := filepath.Join("gamelog", time.Now().Format(time.DateTime)+".log")
 	if err := colog.OpenLog(logFile); err != nil {
 		panic(err)
 	}
