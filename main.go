@@ -63,13 +63,92 @@ var (
 	Container             *fyne.Container
 	MainWindow            = app.New().NewWindow("Dots and Boxes")
 	SignChan              = make(chan struct{}, 1)
-	mu                    sync.Mutex
 	NowTurn               = Player1Turn
 	Player1Score          = 0
 	Player2Score          = 0
 	AssessTable           = make(map[string]map[Edge]AssessData)
 	AssessFile            = "assess.json"
 	GlobalBoard           = make(Board)
+	mu                    sync.Mutex
+
+	Dots = func() (Dots []Dot) {
+		for i := 0; i < BoardSize; i++ {
+			for j := 0; j < BoardSize; j++ {
+				Dots = append(Dots, NewDot(i, j))
+			}
+		}
+		return
+	}()
+
+	EdgesCount = len(Edges)
+
+	Edges = func() (Edges []Edge) {
+		for i := 0; i < BoardSize; i++ {
+			for j := 0; j < BoardSize; j++ {
+				d := NewDot(i, j)
+				if i+1 < BoardSize {
+					Edges = append(Edges, NewEdge(d, NewDot(i+1, j)))
+				}
+				if j+1 < BoardSize {
+					Edges = append(Edges, NewEdge(d, NewDot(i, j+1)))
+				}
+			}
+		}
+		return
+	}()
+
+	EdgesMap = func() map[Edge]struct{} {
+		EdgesMap := make(map[Edge]struct{})
+		for _, e := range Edges {
+			EdgesMap[e] = struct{}{}
+		}
+		return EdgesMap
+	}()
+
+	Boxes = func() (Boxes []Box) {
+		for _, d := range Dots {
+			if d.X() < BoardSize-1 && d.Y() < BoardSize-1 {
+				Boxes = append(Boxes, Box(d))
+			}
+		}
+		return Boxes
+	}()
+
+	EdgeNearBoxes = func() map[Edge][]Box {
+		edges := make(map[Edge][]Box)
+		for e := range EdgesMap {
+			x := e.Dot2().X() - 1
+			y := e.Dot2().Y() - 1
+			if x >= 0 && y >= 0 {
+				boxes := []Box{Box(e.Dot1()), Box(NewDot(x, y))}
+				edges[e] = boxes
+				continue
+			}
+			boxes := []Box{Box(e.Dot1())}
+			edges[e] = boxes
+		}
+		return edges
+	}()
+
+	BoxEdges = func() map[Box][]Edge {
+		BoxEdges := make(map[Box][]Edge)
+		for _, b := range Boxes {
+			x := Dot(b).X()
+			y := Dot(b).Y()
+			D00 := NewDot(x, y)
+			D10 := NewDot(x+1, y)
+			D01 := NewDot(x, y+1)
+			D11 := NewDot(x+1, y+1)
+			edges := []Edge{
+				NewEdge(D00, D01),
+				NewEdge(D00, D10),
+				NewEdge(D10, D11),
+				NewEdge(D01, D11),
+			}
+			BoxEdges[b] = edges
+		}
+		return BoxEdges
+	}()
 )
 
 func (t *Turn) Change() { *t = -*t }
@@ -79,15 +158,6 @@ func NewDot(x, y int) Dot { return Dot(x*BoardSize + y) }
 func (d Dot) X() int { return int(d) / BoardSize }
 
 func (d Dot) Y() int { return int(d) % BoardSize }
-
-var Dots = func() (Dots []Dot) {
-	for i := 0; i < BoardSize; i++ {
-		for j := 0; j < BoardSize; j++ {
-			Dots = append(Dots, NewDot(i, j))
-		}
-	}
-	return
-}()
 
 func NewEdge(Dot1, Dot2 Dot) Edge {
 	if Dot1 > Dot2 {
@@ -104,77 +174,9 @@ func (e Edge) ToString() string {
 	return fmt.Sprintf("(%d, %d) => (%d, %d)", e.Dot1().X(), e.Dot1().Y(), e.Dot2().X(), e.Dot2().Y())
 }
 
-var EdgeNearBoxes = func() map[Edge][]Box {
-	edges := make(map[Edge][]Box)
-	for e := range EdgesMap {
-		x := e.Dot2().X() - 1
-		y := e.Dot2().Y() - 1
-		if x >= 0 && y >= 0 {
-			boxes := []Box{Box(e.Dot1()), Box(NewDot(x, y))}
-			edges[e] = boxes
-			continue
-		}
-		boxes := []Box{Box(e.Dot1())}
-		edges[e] = boxes
-	}
-	return edges
-}()
-
 func (e Edge) NearBoxes() []Box { return EdgeNearBoxes[e] }
 
-var Edges = func() (Edges []Edge) {
-	for i := 0; i < BoardSize; i++ {
-		for j := 0; j < BoardSize; j++ {
-			d := NewDot(i, j)
-			if i+1 < BoardSize {
-				Edges = append(Edges, NewEdge(d, NewDot(i+1, j)))
-			}
-			if j+1 < BoardSize {
-				Edges = append(Edges, NewEdge(d, NewDot(i, j+1)))
-			}
-		}
-	}
-	return
-}()
-
-var EdgesMap = func() map[Edge]struct{} {
-	EdgesMap := make(map[Edge]struct{})
-	for _, e := range Edges {
-		EdgesMap[e] = struct{}{}
-	}
-	return EdgesMap
-}()
-
-var BoxEdges = func() map[Box][]Edge {
-	BoxEdges := make(map[Box][]Edge)
-	for _, b := range Boxes {
-		x := Dot(b).X()
-		y := Dot(b).Y()
-		D00 := NewDot(x, y)
-		D10 := NewDot(x+1, y)
-		D01 := NewDot(x, y+1)
-		D11 := NewDot(x+1, y+1)
-		edges := []Edge{
-			NewEdge(D00, D01),
-			NewEdge(D00, D10),
-			NewEdge(D10, D11),
-			NewEdge(D01, D11),
-		}
-		BoxEdges[b] = edges
-	}
-	return BoxEdges
-}()
-
 func (b Box) Edges() []Edge { return BoxEdges[b] }
-
-var Boxes = func() (Boxes []Box) {
-	for _, d := range Dots {
-		if d.X() < BoardSize-1 && d.Y() < BoardSize-1 {
-			Boxes = append(Boxes, Box(d))
-		}
-	}
-	return Boxes
-}()
 
 func NewBoard(board Board) Board {
 	b := make(Board, len(board))
@@ -340,7 +342,7 @@ func AddEdge(e Edge) {
 			}()
 		}
 	}
-	if len(EdgesMap) == len(GlobalBoard) {
+	if len(GlobalBoard) == EdgesCount {
 		timer := time.NewTimer(2 * time.Second)
 		switch {
 		case Player1Score > Player2Score:
@@ -350,12 +352,8 @@ func AddEdge(e Edge) {
 		case Player1Score == Player2Score:
 			colog.Infof("Draw!")
 		}
-		j, err := json.Marshal(AssessTable)
-		if err != nil {
-			panic(err)
-		}
-		if err = os.WriteFile(AssessFile, j, 0644); err != nil {
-			panic(err)
+		if j, err := json.Marshal(AssessTable); err == nil {
+			os.WriteFile(AssessFile, j, 0644)
 		}
 		<-timer.C
 		os.Exit(0)
@@ -368,7 +366,7 @@ func AddEdge(e Edge) {
 }
 
 func GetNextEdges(board Board) (bestEdge Edge) {
-	minEnemyCanGetScore := 3
+	enemyMinScore := 3
 	for e := range EdgesMap {
 		if _, c := board[e]; !c {
 			if score := board.ObtainsScore(e); score > 0 {
@@ -381,8 +379,8 @@ func GetNextEdges(board Board) (bestEdge Edge) {
 						s++
 					}
 				}
-				if minEnemyCanGetScore > s {
-					minEnemyCanGetScore = s
+				if enemyMinScore > s {
+					enemyMinScore = s
 					bestEdge = e
 				}
 			}
@@ -409,7 +407,7 @@ func GetBestEdge() (bestEdge Edge) {
 				turn := Player1Turn
 				firstEdge := Edge(0)
 				score := 0
-				for len(b) < len(EdgesMap) {
+				for len(b) < EdgesCount {
 					t.Add(1)
 					edge := GetNextEdges(b)
 					if firstEdge == 0 {
