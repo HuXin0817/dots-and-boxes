@@ -253,8 +253,8 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 	return newEdge
 }
 
-func NewBox(s Box) *canvas.Rectangle {
-	d := Dot(s)
+func NewBox(box Box) *canvas.Rectangle {
+	d := Dot(box)
 	x := transPosition(d.X()) + DotWidth
 	y := transPosition(d.Y()) + DotWidth
 	r := canvas.NewRectangle(color.Black)
