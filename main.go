@@ -275,6 +275,7 @@ func AddEdge(e Edge) {
 	mu.Lock()
 	defer mu.Unlock()
 	defer Container.Refresh()
+	nowStep := len(GlobalBoard)
 	boxes := GlobalBoard.ObtainsBoxes(e)
 	score := len(boxes)
 	if NowTurn == Player1Turn {
@@ -284,7 +285,7 @@ func AddEdge(e Edge) {
 		}
 		EdgesUICanvases[e].StrokeColor = Player1HighLightColor
 		Player1Score += score
-		colog.Infof("Step: %d Player1 Edge: %s Player1 Score: %d, Player2 Score: %d", len(GlobalBoard), e.ToString(), Player1Score, Player2Score)
+		colog.Infof("Step: %d Player1 Edge: %s Player1 Score: %d, Player2 Score: %d", nowStep, e.ToString(), Player1Score, Player2Score)
 	} else {
 		for _, box := range boxes {
 			BoxesUICanvases[box].FillColor = Player2FilledColor
@@ -292,7 +293,7 @@ func AddEdge(e Edge) {
 		}
 		EdgesUICanvases[e].StrokeColor = Player2HighLightColor
 		Player2Score += score
-		colog.Infof("Step: %d Player2 Edge: %s Player1 Score: %d, Player2 Score: %d", len(GlobalBoard), e.ToString(), Player1Score, Player2Score)
+		colog.Infof("Step: %d Player2 Edge: %s Player1 Score: %d, Player2 Score: %d", nowStep, e.ToString(), Player1Score, Player2Score)
 	}
 	if button, c := Buttons[e]; c {
 		button.Hide()
@@ -309,10 +310,9 @@ func AddEdge(e Edge) {
 				endColor := color.Black
 				step := 100
 				d := time.Second / time.Duration(step)
-				nowTurn := len(GlobalBoard)
 				for {
 					for i := 0; i <= step; i++ {
-						if nowTurn != len(GlobalBoard) {
+						if nowStep != len(GlobalBoard) {
 							BoxesUICanvases[box].FillColor = BoxesFilledColor[box]
 							BoxesUICanvases[box].Refresh()
 							return
@@ -323,7 +323,7 @@ func AddEdge(e Edge) {
 						BoxesUICanvases[box].Refresh()
 					}
 					for i := 0; i <= step; i++ {
-						if nowTurn != len(GlobalBoard) {
+						if nowStep != len(GlobalBoard) {
 							BoxesUICanvases[box].FillColor = BoxesFilledColor[box]
 							BoxesUICanvases[box].Refresh()
 							return
@@ -337,7 +337,7 @@ func AddEdge(e Edge) {
 			}()
 		}
 	}
-	if len(GlobalBoard) == EdgesCount {
+	if nowStep == EdgesCount {
 		timer := time.NewTimer(2 * time.Second)
 		switch {
 		case Player1Score > Player2Score:
@@ -438,7 +438,7 @@ func GetBestEdge() (bestEdge Edge) {
 }
 
 func main() {
-	if len(os.Args) == 2 {
+	if len(os.Args) >= 2 {
 		AssessFile = os.Args[1]
 	}
 	if file, err := os.ReadFile(AssessFile); err == nil {
