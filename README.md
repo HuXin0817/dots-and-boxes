@@ -125,9 +125,9 @@ Each move is logged with detailed information including the current step, the pl
 and the scores:
 
 ```
-2024-07-03 10:51:42 GAME START!
-2024-07-03 10:51:48 Step: 0 Player1 Edge: (4, 4) => (5, 4) Player1 Score: 0, Player2 Score: 0
-2024-07-03 10:51:55 Step: 1 Player2 Edge: (4, 3) => (5, 3) Player1 Score: 0, Player2 Score: 0
+2024-07-03 12:13:43 GAME START!
+2024-07-03 12:13:45 Step: 0, Turn Player1, Edge: (4, 4) => (5, 4), Player1 Score: 0, Player2 Score: 0
+2024-07-03 12:13:48 Step: 1, Turn Player2, Edge: (4, 0) => (5, 0), Player1 Score: 0, Player2 Score: 0
 ```
 
 ## Conclusion
