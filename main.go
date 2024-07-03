@@ -50,12 +50,12 @@ const (
 )
 
 var (
-	EdgeFilledColor       = color.RGBA{R: 128, G: 128, B: 128, A: 128}
-	Player1HighLightColor = color.RGBA{R: 30, G: 30, B: 255, A: 128}
-	Player2HighLightColor = color.RGBA{R: 255, G: 30, B: 30, A: 128}
-	TipColor              = color.RGBA{R: 255, G: 255, B: 30, A: 50}
-	Player1FilledColor    = color.RGBA{R: 30, G: 30, B: 128, A: 128}
-	Player2FilledColor    = color.RGBA{R: 128, G: 30, B: 30, A: 128}
+	EdgeFilledColor       = color.NRGBA{R: 128, G: 128, B: 128, A: 128}
+	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}
+	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}
+	TipColor              = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
+	Player1FilledColor    = color.NRGBA{R: 30, G: 30, B: 128, A: 128}
+	Player2FilledColor    = color.NRGBA{R: 128, G: 30, B: 30, A: 128}
 	EdgesUICanvases       = make(map[Edge]*canvas.Line)
 	BoxesUICanvases       = make(map[Box]*canvas.Rectangle)
 	Buttons               = make(map[Edge]*widget.Button)
@@ -275,6 +275,7 @@ func AddEdge(e Edge) {
 	mu.Lock()
 	defer mu.Unlock()
 	defer Container.Refresh()
+	defer Buttons[e].Hide()
 	nowStep := len(GlobalBoard)
 	boxes := GlobalBoard.ObtainsBoxes(e)
 	score := len(boxes)
@@ -295,9 +296,6 @@ func AddEdge(e Edge) {
 		Player2Score += score
 		colog.Infof("Step: %d Player2 Edge: %s Player1 Score: %d, Player2 Score: %d", nowStep, e.ToString(), Player1Score, Player2Score)
 	}
-	if button, c := Buttons[e]; c {
-		button.Hide()
-	}
 	if score == 0 {
 		NowTurn.Change()
 	}
@@ -306,6 +304,10 @@ func AddEdge(e Edge) {
 		edgesCountInBox := GlobalBoard.EdgesCountInBox(box)
 		if edgesCountInBox == 3 {
 			go func() {
+				defer func() {
+					BoxesUICanvases[box].FillColor = BoxesFilledColor[box]
+					BoxesUICanvases[box].Refresh()
+				}()
 				startColor := TipColor
 				endColor := color.Black
 				step := 100
@@ -313,8 +315,6 @@ func AddEdge(e Edge) {
 				for {
 					for i := 0; i <= step; i++ {
 						if nowStep != len(GlobalBoard) {
-							BoxesUICanvases[box].FillColor = BoxesFilledColor[box]
-							BoxesUICanvases[box].Refresh()
 							return
 						}
 						time.Sleep(d)
@@ -324,8 +324,6 @@ func AddEdge(e Edge) {
 					}
 					for i := 0; i <= step; i++ {
 						if nowStep != len(GlobalBoard) {
-							BoxesUICanvases[box].FillColor = BoxesFilledColor[box]
-							BoxesUICanvases[box].Refresh()
 							return
 						}
 						time.Sleep(d)
@@ -463,10 +461,9 @@ func main() {
 		EdgesUICanvases[e] = edgeUi
 		Container.Add(edgeUi)
 		Buttons[e] = widget.NewButton("", func() {
-			switch {
-			case AIPlayer1 && NowTurn == Player1Turn:
+			if AIPlayer1 && NowTurn == Player1Turn {
 				return
-			case AIPlayer2 && NowTurn == Player2Turn:
+			} else if AIPlayer2 && NowTurn == Player2Turn {
 				return
 			}
 			AddEdge(e)
