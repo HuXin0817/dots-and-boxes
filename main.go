@@ -36,17 +36,19 @@ const (
 )
 
 const (
-	BoardSize      = 6
-	BoardSizePower = BoardSize * BoardSize
-	AIPlayer1      = true
-	AIPlayer2      = true
-	DotDistance    = 75
-	DotWidth       = 15
-	DotMargin      = 50
-	BoxSize        = DotDistance - DotWidth
-	MainWindowSize = DotDistance*BoardSize + DotMargin
-	SearchTime     = 1e6
-	Goroutines     = 32
+	BoardSize         = 6
+	BoardSizePower    = BoardSize * BoardSize
+	AIPlayer1         = true
+	AIPlayer2         = true
+	DotDistance       = 100
+	DotWidth          = DotDistance / 5
+	DotMargin         = DotDistance / 3 * 2
+	BoxSize           = DotDistance - DotWidth
+	MainWindowSize    = DotDistance*BoardSize + DotMargin
+	SearchTime        = 1e6
+	Goroutines        = 32
+	AnimationSteps    = 100
+	AnimationStepTime = time.Second / AnimationSteps
 )
 
 var (
@@ -59,6 +61,7 @@ var (
 		Player2Turn: {R: 128, G: 30, B: 30, A: 128},
 	}
 	TipColor         = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
+	DefaultColor     = color.Black
 	EdgesUICanvases  = make(map[Edge]*canvas.Line)
 	BoxesUICanvases  = make(map[Box]*canvas.Rectangle)
 	Buttons          = make(map[Edge]*widget.Button)
@@ -253,7 +256,7 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 	y1 := transPosition(e.Dot1().Y()) + DotWidth/2
 	x2 := transPosition(e.Dot2().X()) + DotWidth/2
 	y2 := transPosition(e.Dot2().Y()) + DotWidth/2
-	newEdge := canvas.NewLine(color.Black)
+	newEdge := canvas.NewLine(DefaultColor)
 	newEdge.Position1 = fyne.NewPos(x1, y1)
 	newEdge.Position2 = fyne.NewPos(x2, y2)
 	newEdge.StrokeWidth = DotWidth
@@ -264,7 +267,7 @@ func NewBox(box Box) *canvas.Rectangle {
 	d := Dot(box)
 	x := transPosition(d.X()) + DotWidth
 	y := transPosition(d.Y()) + DotWidth
-	r := canvas.NewRectangle(color.Black)
+	r := canvas.NewRectangle(DefaultColor)
 	r.Move(fyne.NewPos(x, y))
 	r.Resize(fyne.NewSize(BoxSize, BoxSize))
 	return r
@@ -308,27 +311,23 @@ func AddEdge(e Edge) {
 					BoxesUICanvases[box].FillColor = BoxesFilledColor[box]
 					BoxesUICanvases[box].Refresh()
 				}()
-				startColor := TipColor
-				endColor := color.Black
-				step := 100
-				d := time.Second / time.Duration(step)
 				for {
-					for i := 0; i <= step; i++ {
+					for i := 0; i <= AnimationSteps; i++ {
 						if nowStep != len(GlobalBoard) {
 							return
 						}
-						time.Sleep(d)
-						t := float64(i) / float64(step)
-						BoxesUICanvases[box].FillColor = interpolateColor(startColor, endColor, t)
+						time.Sleep(AnimationStepTime)
+						t := float64(i) / float64(AnimationSteps)
+						BoxesUICanvases[box].FillColor = interpolateColor(TipColor, DefaultColor, t)
 						BoxesUICanvases[box].Refresh()
 					}
-					for i := 0; i <= step; i++ {
+					for i := 0; i <= AnimationSteps; i++ {
 						if nowStep != len(GlobalBoard) {
 							return
 						}
-						time.Sleep(d)
-						t := float64(i) / float64(step)
-						BoxesUICanvases[box].FillColor = interpolateColor(endColor, startColor, t)
+						time.Sleep(AnimationStepTime)
+						t := float64(i) / float64(AnimationSteps)
+						BoxesUICanvases[box].FillColor = interpolateColor(DefaultColor, TipColor, t)
 						BoxesUICanvases[box].Refresh()
 					}
 				}
@@ -445,7 +444,7 @@ func main() {
 	if err := colog.OpenLog(logFile); err != nil {
 		panic(err)
 	}
-	background := canvas.NewRectangle(color.Black)
+	background := canvas.NewRectangle(DefaultColor)
 	background.Move(fyne.NewPos(0, 0))
 	background.Resize(fyne.NewSize(1e10, 1e10))
 	Container = container.NewWithoutLayout(background)
@@ -453,7 +452,7 @@ func main() {
 		boxUi := NewBox(b)
 		BoxesUICanvases[b] = boxUi
 		Container.Add(boxUi)
-		BoxesFilledColor[b] = color.Black
+		BoxesFilledColor[b] = DefaultColor
 	}
 	for e := range EdgesMap {
 		edgeUi := NewEdgeCanvas(e)
