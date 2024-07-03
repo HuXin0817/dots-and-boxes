@@ -45,31 +45,33 @@ const (
 	DotMargin      = 50
 	BoxSize        = DotDistance - DotWidth
 	MainWindowSize = DotDistance*BoardSize + DotMargin
-	SearchTime     = 5e6
+	SearchTime     = 1e6
 	Goroutines     = 32
 )
 
 var (
-	EdgeFilledColor       = color.NRGBA{R: 128, G: 128, B: 128, A: 128}
-	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}
-	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}
-	TipColor              = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
-	Player1FilledColor    = color.NRGBA{R: 30, G: 30, B: 128, A: 128}
-	Player2FilledColor    = color.NRGBA{R: 128, G: 30, B: 30, A: 128}
-	EdgesUICanvases       = make(map[Edge]*canvas.Line)
-	BoxesUICanvases       = make(map[Box]*canvas.Rectangle)
-	Buttons               = make(map[Edge]*widget.Button)
-	BoxesFilledColor      = make(map[Box]color.Color)
-	Container             *fyne.Container
-	MainWindow            = app.New().NewWindow("Dots and Boxes")
-	SignChan              = make(chan struct{}, 1)
-	NowTurn               = Player1Turn
-	Player1Score          = 0
-	Player2Score          = 0
-	AssessTable           = make(map[string]map[Edge]AssessData)
-	AssessFile            = "assess.json"
-	GlobalBoard           = make(Board)
-	mu                    sync.Mutex
+	HighLightColor = map[Turn]color.NRGBA{
+		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
+		Player2Turn: {R: 255, G: 30, B: 30, A: 128},
+	}
+	FilledColor = map[Turn]color.NRGBA{
+		Player1Turn: {R: 30, G: 30, B: 128, A: 128},
+		Player2Turn: {R: 128, G: 30, B: 30, A: 128},
+	}
+	TipColor         = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
+	EdgesUICanvases  = make(map[Edge]*canvas.Line)
+	BoxesUICanvases  = make(map[Box]*canvas.Rectangle)
+	Buttons          = make(map[Edge]*widget.Button)
+	BoxesFilledColor = make(map[Box]color.Color)
+	Container        *fyne.Container
+	MainWindow       = app.New().NewWindow("Dots and Boxes")
+	SignChan         = make(chan struct{}, 1)
+	NowTurn          = Player1Turn
+	PlayerScore      = map[Turn]int{Player1Turn: 0, Player2Turn: 0}
+	AssessTable      = make(map[string]map[Edge]AssessData)
+	AssessFile       = "assess.json"
+	GlobalBoard      = make(Board)
+	mu               sync.Mutex
 
 	Dots = func() (Dots []Dot) {
 		for i := 0; i < BoardSize; i++ {
@@ -149,7 +151,14 @@ var (
 		}
 		return BoxEdges
 	}()
+
+	TurnToString = map[Turn]string{
+		Player1Turn: "Player1",
+		Player2Turn: "Player2",
+	}
 )
+
+func (t *Turn) ToString() string { return TurnToString[*t] }
 
 func (t *Turn) Change() { *t = -*t }
 
@@ -244,7 +253,7 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 	y1 := transPosition(e.Dot1().Y()) + DotWidth/2
 	x2 := transPosition(e.Dot2().X()) + DotWidth/2
 	y2 := transPosition(e.Dot2().Y()) + DotWidth/2
-	newEdge := canvas.NewLine(EdgeFilledColor)
+	newEdge := canvas.NewLine(color.Black)
 	newEdge.Position1 = fyne.NewPos(x1, y1)
 	newEdge.Position2 = fyne.NewPos(x2, y2)
 	newEdge.StrokeWidth = DotWidth
@@ -279,27 +288,18 @@ func AddEdge(e Edge) {
 	nowStep := len(GlobalBoard)
 	boxes := GlobalBoard.ObtainsBoxes(e)
 	score := len(boxes)
-	if NowTurn == Player1Turn {
-		for _, box := range boxes {
-			BoxesUICanvases[box].FillColor = Player1FilledColor
-			BoxesFilledColor[box] = Player1FilledColor
-		}
-		EdgesUICanvases[e].StrokeColor = Player1HighLightColor
-		Player1Score += score
-		colog.Infof("Step: %d Player1 Edge: %s Player1 Score: %d, Player2 Score: %d", nowStep, e.ToString(), Player1Score, Player2Score)
-	} else {
-		for _, box := range boxes {
-			BoxesUICanvases[box].FillColor = Player2FilledColor
-			BoxesFilledColor[box] = Player2FilledColor
-		}
-		EdgesUICanvases[e].StrokeColor = Player2HighLightColor
-		Player2Score += score
-		colog.Infof("Step: %d Player2 Edge: %s Player1 Score: %d, Player2 Score: %d", nowStep, e.ToString(), Player1Score, Player2Score)
+	for _, box := range boxes {
+		BoxesUICanvases[box].FillColor = FilledColor[NowTurn]
+		BoxesFilledColor[box] = FilledColor[NowTurn]
 	}
+	EdgesUICanvases[e].StrokeColor = HighLightColor[NowTurn]
+	PlayerScore[NowTurn] += score
+	colog.Infof("Step: %d, Turn %s, Edge: %s, Player1 Score: %d, Player2 Score: %d", nowStep, NowTurn.ToString(), e.ToString(), PlayerScore[Player1Turn], PlayerScore[Player2Turn])
 	if score == 0 {
 		NowTurn.Change()
 	}
 	GlobalBoard[e] = struct{}{}
+	nowStep++
 	for _, box := range Boxes {
 		edgesCountInBox := GlobalBoard.EdgesCountInBox(box)
 		if edgesCountInBox == 3 {
@@ -337,12 +337,11 @@ func AddEdge(e Edge) {
 	}
 	if nowStep == EdgesCount {
 		timer := time.NewTimer(2 * time.Second)
-		switch {
-		case Player1Score > Player2Score:
-			colog.Info("Player1 Win! Score:", Player1Score)
-		case Player1Score < Player2Score:
-			colog.Info("Player2 Win! Score:", Player2Score)
-		case Player1Score == Player2Score:
+		if PlayerScore[Player1Turn] > PlayerScore[Player2Turn] {
+			colog.Info("Player1 Win!")
+		} else if PlayerScore[Player1Turn] < PlayerScore[Player2Turn] {
+			colog.Info("Player2 Win!")
+		} else if PlayerScore[Player1Turn] == PlayerScore[Player2Turn] {
 			colog.Infof("Draw!")
 		}
 		if j, err := json.Marshal(AssessTable); err == nil {
