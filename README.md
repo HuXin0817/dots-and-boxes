@@ -27,7 +27,7 @@ through the setup, execution, and understanding of the game's code and features.
 
 Before you begin, ensure you have the following installed on your system:
 
-- [Go](https://go.dev) programming language (version 1.16 or higher)
+- [Go](https://go.dev) programming language (version 1.18 or higher)
 - [Fyne](https://fyne.io) UI library (v2.0 or higher)
 
 ## Installation
@@ -35,7 +35,7 @@ Before you begin, ensure you have the following installed on your system:
 1. **Clone the repository:**
 
    ```sh
-   git clone https://github.com/yourusername/dots-and-boxes.git
+   git clone https://github.com/HuXin0817/dots-and-boxes.git
    cd dots-and-boxes
    ```
 
@@ -58,7 +58,7 @@ go run main.go
 Optionally, you can specify an assessment file:
 
 ```sh
-go run main.go assess_table.json
+go run main.go assess.json
 ```
 
 ## Game Rules
@@ -125,8 +125,9 @@ Each move is logged with detailed information including the current step, the pl
 and the scores:
 
 ```
-Step: 1 Player1 Edge: (0, 0) => (0, 1) Player1 Score: 0, Player2 Score: 0
-Step: 2 Player2 Edge: (1, 0) => (1, 1) Player1 Score: 0, Player2 Score: 0
+2024-07-03 10:51:42 GAME START!
+2024-07-03 10:51:48 Step: 0 Player1 Edge: (4, 4) => (5, 4) Player1 Score: 0, Player2 Score: 0
+2024-07-03 10:51:55 Step: 1 Player2 Edge: (4, 3) => (5, 3) Player1 Score: 0, Player2 Score: 0
 ```
 
 ## Conclusion

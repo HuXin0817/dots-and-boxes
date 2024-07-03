@@ -51,11 +51,11 @@ const (
 
 var (
 	EdgeFilledColor       = color.RGBA{R: 128, G: 128, B: 128, A: 128}
-	Player1HighLightColor = color.NRGBA{R: 30, G: 30, B: 255, A: 128}
-	Player2HighLightColor = color.NRGBA{R: 255, G: 30, B: 30, A: 128}
-	TipColor              = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
-	Player1FilledColor    = color.NRGBA{R: 30, G: 30, B: 128, A: 128}
-	Player2FilledColor    = color.NRGBA{R: 128, G: 30, B: 30, A: 128}
+	Player1HighLightColor = color.RGBA{R: 30, G: 30, B: 255, A: 128}
+	Player2HighLightColor = color.RGBA{R: 255, G: 30, B: 30, A: 128}
+	TipColor              = color.RGBA{R: 255, G: 255, B: 30, A: 50}
+	Player1FilledColor    = color.RGBA{R: 30, G: 30, B: 128, A: 128}
+	Player2FilledColor    = color.RGBA{R: 128, G: 30, B: 30, A: 128}
 	EdgesUICanvases       = make(map[Edge]*canvas.Line)
 	BoxesUICanvases       = make(map[Box]*canvas.Rectangle)
 	Buttons               = make(map[Edge]*widget.Button)
@@ -471,15 +471,11 @@ func main() {
 			}
 			AddEdge(e)
 		})
-		var SizeX, SizeY float32
 		if e.Dot1().X() == e.Dot2().X() {
-			SizeX = DotWidth
-			SizeY = DotDistance
+			Buttons[e].Resize(fyne.NewSize(DotWidth, DotDistance))
 		} else {
-			SizeX = DotDistance
-			SizeY = DotWidth
+			Buttons[e].Resize(fyne.NewSize(DotDistance, DotWidth))
 		}
-		Buttons[e].Resize(fyne.NewSize(SizeX, SizeY))
 		PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - Buttons[e].Size().Width/2 + DotWidth/2
 		PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - Buttons[e].Size().Height/2 + DotWidth/2
 		Buttons[e].Move(fyne.NewPos(PosX, PosY))
