@@ -633,7 +633,13 @@ func main() {
 			colog.Error("Unidentified Input Key:", event.Name)
 		}
 	})
-	Reset(false, false)
+	NowGame = NewGame(false, false)
+	App.Settings().SetTheme(NowGame)
+	MainWindow.SetContent(NowGame.Container)
 	MainWindow.SetFixedSize(true)
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		NowGame.Container.Refresh()
+	}()
 	MainWindow.ShowAndRun()
 }
