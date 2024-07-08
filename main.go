@@ -35,11 +35,11 @@ const (
 	BoardSizePower    = BoardSize * BoardSize
 	AIPlayer1         = true
 	AIPlayer2         = true
-	DotDistance       = 75
+	DotDistance       = 80
 	DotWidth          = DotDistance / 5
 	DotMargin         = DotDistance / 3 * 2
 	BoxSize           = DotDistance - DotWidth
-	MainWindowSize    = DotDistance*BoardSize + DotMargin
+	MainWindowSize    = DotDistance*BoardSize + DotMargin - 5
 	SearchTime        = 1e6
 	Goroutines        = 32
 	AnimationSteps    = 100
@@ -57,20 +57,7 @@ var (
 		Player1Turn: {R: 30, G: 30, B: 128, A: 128},
 		Player2Turn: {R: 128, G: 30, B: 30, A: 128},
 	}
-	TipColor         = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
-	DotCanvases      = make(map[Dot]*canvas.Circle)
-	EdgesCanvases    = make(map[Edge]*canvas.Line)
-	BoxesCanvases    = make(map[Box]*canvas.Rectangle)
-	EdgeButtons      = make(map[Edge]*widget.Button)
-	BoxesFilledColor = make(map[Box]color.Color)
-	Container        *fyne.Container
-	App              = app.New()
-	MainWindow       = App.NewWindow("Dots and Boxes")
-	SignChan         = make(chan struct{}, 1)
-	NowTurn          = Player1Turn
-	PlayerScore      = map[Turn]int{Player1Turn: 0, Player2Turn: 0}
-	GlobalBoard      = make(Board)
-	mu               sync.Mutex
+	TipColor = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
 
 	Dots = func() (Dots []Dot) {
 		for i := 0; i < BoardSize; i++ {
@@ -148,14 +135,31 @@ var (
 		}
 		return BoxEdges
 	}()
-
-	TurnToString = map[Turn]string{
-		Player1Turn: "Player1",
-		Player2Turn: "Player2",
-	}
 )
 
-func (t *Turn) ToString() string { return TurnToString[*t] }
+var (
+	DotCanvases      = make(map[Dot]*canvas.Circle)
+	EdgesCanvases    = make(map[Edge]*canvas.Line)
+	BoxesCanvases    = make(map[Box]*canvas.Rectangle)
+	EdgeButtons      = make(map[Edge]*widget.Button)
+	BoxesFilledColor = make(map[Box]color.Color)
+	Container        *fyne.Container
+	App              = app.New()
+	MainWindow       = App.NewWindow("Dots and Boxes")
+	SignChan         = make(chan struct{}, 1)
+	NowTurn          = Player1Turn
+	PlayerScore      = map[Turn]int{Player1Turn: 0, Player2Turn: 0}
+	GlobalBoard      = make(Board)
+	mu               sync.Mutex
+)
+
+func (t *Turn) ToString() string {
+	if *t == Player1Turn {
+		return "Player1"
+	} else {
+		return "Player2"
+	}
+}
 
 func (t *Turn) Change() { *t = -*t }
 
@@ -395,16 +399,17 @@ func GetBestEdge(board Board) (bestEdge Edge) {
 	searchTime := make(map[Edge]int)
 	sumScore := make(map[Edge]int)
 	wg.Add(Goroutines)
+	depth := int64(EdgesCount - len(board))
 	for range Goroutines {
 		go func() {
 			defer wg.Done()
 			for t.Load() < SearchTime {
 				b := NewBoard(board)
+				t.Add(depth)
 				turn := Player1Turn
-				firstEdge := Edge(0)
-				score := 0
+				var firstEdge Edge
+				var score int
 				for len(b) < EdgesCount {
-					t.Add(1)
 					edge := GetNextEdges(b)
 					if firstEdge == 0 {
 						firstEdge = edge
@@ -476,15 +481,12 @@ func main() {
 	App.Settings().SetTheme(&GameTheme{})
 	Container = container.NewWithoutLayout()
 	for _, b := range Boxes {
-		boxCanvas := NewBoxCanvas(b)
-		BoxesCanvases[b] = boxCanvas
-		Container.Add(boxCanvas)
-		BoxesFilledColor[b] = getThemeColor()
+		BoxesCanvases[b] = NewBoxCanvas(b)
+		Container.Add(BoxesCanvases[b])
 	}
 	for e := range EdgesSet {
-		edgeCanvas := NewEdgeCanvas(e)
-		EdgesCanvases[e] = edgeCanvas
-		Container.Add(edgeCanvas)
+		EdgesCanvases[e] = NewEdgeCanvas(e)
+		Container.Add(EdgesCanvases[e])
 		EdgeButtons[e] = widget.NewButton("", func() {
 			if AIPlayer1 && NowTurn == Player1Turn {
 				return
@@ -507,9 +509,8 @@ func main() {
 		Container.Add(EdgeButtons[e])
 	}
 	for _, d := range Dots {
-		dotCanvas := NewDotCanvas(d)
-		DotCanvases[d] = dotCanvas
-		Container.Add(dotCanvas)
+		DotCanvases[d] = NewDotCanvas(d)
+		Container.Add(DotCanvases[d])
 	}
 	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
 	MainWindow.SetContent(Container)

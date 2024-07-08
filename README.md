@@ -1,51 +1,62 @@
-# Dots and Boxes
+# Dots and Boxes Game
 
-This is a Dots and Boxes game implemented in Go using the Fyne GUI library. The game supports both AI and human players and provides a visual interface to play the game.
+This project is a graphical implementation of the Dots and Boxes game using the Fyne library in Go. The game includes AI players and a scoring mechanism, with a graphical representation of the board and game elements.
 
 ![demo](demo.png)
 
-## Table of Contents
+## Features
 
-- [Installation](#installation)
-- [Game Rules](#game-rules)
-- [Implementation Details](#implementation-details)
-- [Contributing](#contributing)
-- [License](#license)
+- Two players: Player1 and Player2
+- AI support for both players
+- Interactive graphical user interface
+- Animation for scoring boxes
+- Game logging
+
+
+
+## Prerequisites
+
+- Go 1.16 or later
+- Fyne library
 
 ## Installation
 
-1. **Clone the repository:**
+1. Install Go from the [official website](https://golang.org/dl/).
 
-   ```bash
-   git clone https://github.com/HuXin0817/dots-and-boxes.git
-   cd dots-and-boxes
-   ```
+2. Install the Fyne library:
 
-2. **Install dependencies:**
+    ```bash
+    go get fyne.io/fyne/v2
+    ```
 
-   Make sure you have Go installed on your system. Then, install the required dependencies:
+3. Clone the repository:
 
-   ```bash
-   go mod tidy
-   ```
+    ```bash
+    git clone https://github.com/HuXin0817/dots-and-boxes-game.git
+    ```
 
-3. **Run the project:**
+4. Navigate to the project directory:
 
-   ```bash
-   go run main.go
-   ```
+    ```bash
+    cd dots-and-boxes-game
+    ```
 
-The game window will open, and you can start playing the game.
+## Usage
+
+1. Run the game:
+
+    ```bash
+    go run main.go
+    ```
+
+2. The game window will open, and the game will start automatically. The AI will make the first move if enabled.
 
 ## Game Rules
 
-Dots and Boxes is a classic game where players take turns to draw lines between dots on a grid. The goal is to complete boxes. Each completed box earns the player an additional turn. The player with the most completed boxes at the end of the game wins.
-
-- **Turn:** Players alternate turns. A turn consists of drawing a line between two adjacent dots.
-- **Scoring:** Completing a box earns the player a point and an extra turn.
-- **End Game:** The game ends when all possible lines are drawn. The player with the most points wins.
-
-## Implementation Details
+- Players take turns to draw edges between dots.
+- Completing the fourth edge of a box earns the player a point, and they get another turn.
+- The game ends when all boxes are completed.
+- The player with the most points wins.
 
 ### Board Representation
 
@@ -56,20 +67,30 @@ The board is represented using various types:
 - **Box:** Represents a box formed by four edges.
 - **Board:** A map of edges used to keep track of drawn lines.
 
-### Main Components
+## Customization
 
-- **Turn Management:** The game alternates turns between two players, `Player1` and `Player2`.
-- **AI Players:** The game can be configured to have AI players for both `Player1` and `Player2`.
-- **Visual Interface:** The game uses the Fyne library to create a graphical user interface, displaying dots, lines, and boxes.
+- The AI for each player can be enabled or disabled by setting the `AIPlayer1` and `AIPlayer2` constants.
+- The game board size can be adjusted by changing the `BoardSize` constant.
+- Various visual elements such as colors and animation steps can be customized in the code.
 
-### Game Logic
+## Logging
 
-- **Edge Addition:** When an edge is added, the game checks if any boxes are completed. If a box is completed, the player earns a point and gets another turn.
-- **AI Logic:** The AI determines the next move by simulating possible moves and choosing the one that maximizes its advantage while minimizing the opponent's advantage.
+- Game actions are logged to a file in the `game log` directory.
+- The log file is named with the current date and time.
 
-### Logging
+## Project Structure
 
-The game logs important events such as turn changes, edge additions, and game results using the `colog` package. The logs are saved in a `gamelog` directory with a timestamped filename.
+- `main.go`: The main game logic and UI implementation.
+- Various helper functions and constants are defined for managing the game state, drawing the UI, and handling AI moves.
+
+## License
+
+This project is licensed under the Mulan PSL v2. See the LICENSE file for details.
+
+## Acknowledgments
+
+- The [Fyne](https://fyne.io/) library for providing the GUI framework.
+- [colog](https://github.com/HuXin0817/colog) for logging support.
 
 ## Contributing
 
@@ -81,10 +102,7 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 4. **Push to the branch** (`git push origin feature-branch`)
 5. **Create a new Pull Request**
 
-## License
+## Contact
 
-This project is licensed under the Mulan PSL v2 License - see the [LICENSE](LICENSE) file for details.
+For any questions or feedback, please contact [202219120810@stu.cdut.edu.cn].
 
----
-
-Enjoy playing Dots and Boxes! If you have any questions or need further assistance, feel free to reach out.
