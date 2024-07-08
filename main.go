@@ -2,6 +2,12 @@ package main
 
 import (
 	"fmt"
+	"image/color"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -9,33 +15,32 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/HuXin0817/colog"
-	"image/color"
-	"path/filepath"
-	"sync"
-	"sync/atomic"
-	"time"
-)
-
-const (
-	BoardSize         = 6
-	BoardSizePower    = BoardSize * BoardSize
-	DotDistance       = 80
-	DotWidth          = DotDistance / 5
-	DotMargin         = DotDistance / 3 * 2
-	BoxSize           = DotDistance - DotWidth
-	MainWindowSize    = DotDistance*BoardSize + DotMargin - 5
-	SearchTime        = 1e6
-	Goroutines        = 32
-	AnimationSteps    = 100
-	AnimationStepTime = time.Second / AnimationSteps
-	Record            = true
 )
 
 var (
-	App        = app.New()
-	MainWindow = App.NewWindow("Dots and Boxes")
-
+	BoardSize         = 6
+	BoardSizePower    = Dot(BoardSize * BoardSize)
+	DotDistance       = float32(80)
+	DotWidth          = DotDistance / 5
+	DotMargin         = DotDistance / 3 * 2
+	BoxSize           = DotDistance - DotWidth
+	MainWindowSize    = DotDistance*float32(BoardSize) + DotMargin - 5
+	SearchTime        = int64(1e5)
+	Goroutines        = 32
+	AnimationSteps    = 100
+	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
+	App               = app.New()
+	MainWindow        = App.NewWindow("Dots and Boxes")
+	NowGame           = &Game{}
+	Dots              []Dot
+	EdgesCount        int
+	Edges             []Edge
+	EdgesSet          map[Edge]struct{}
+	Boxes             []Box
+	EdgeNearBoxes     map[Edge][]Box
+	BoxEdges          map[Box][]Edge
 	GlobalSystemColor fyne.ThemeVariant
+	LogRecord         bool
 	HighLightColor    = map[Turn]color.NRGBA{
 		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
 		Player2Turn: {R: 255, G: 30, B: 30, A: 128},
@@ -45,6 +50,13 @@ var (
 		Player2Turn: {R: 128, G: 30, B: 30, A: 128},
 	}
 	TipColor = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
+)
+
+func SetBoardSize(x int) {
+	BoardSize = x
+	BoardSizePower = Dot(BoardSize * BoardSize)
+	MainWindowSize = DotDistance*float32(BoardSize) + DotMargin - 5
+	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
 
 	Dots = func() (Dots []Dot) {
 		for i := 0; i < BoardSize; i++ {
@@ -54,8 +66,6 @@ var (
 		}
 		return
 	}()
-
-	EdgesCount = len(Edges)
 
 	Edges = func() (Edges []Edge) {
 		for i := 0; i < BoardSize; i++ {
@@ -122,7 +132,9 @@ var (
 		}
 		return BoxEdges
 	}()
-)
+
+	EdgesCount = len(Edges)
+}
 
 type Turn int
 
@@ -214,25 +226,22 @@ func GetDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), tra
 func GetDotCanvasColor() color.Color {
 	if GlobalSystemColor == theme.VariantDark {
 		return color.RGBA{R: 202, G: 202, B: 202, A: 255}
-	} else {
-		return color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	}
+	return color.RGBA{R: 255, G: 255, B: 255, A: 255}
 }
 
 func GetThemeColor() color.Color {
 	if GlobalSystemColor == theme.VariantDark {
 		return color.RGBA{R: 43, G: 43, B: 43, A: 255}
-	} else {
-		return color.RGBA{R: 242, G: 242, B: 242, A: 255}
 	}
+	return color.RGBA{R: 242, G: 242, B: 242, A: 255}
 }
 
 func GetButtonColor() color.Color {
 	if GlobalSystemColor == theme.VariantDark {
 		return color.RGBA{R: 65, G: 65, B: 65, A: 255}
-	} else {
-		return color.RGBA{R: 217, G: 217, B: 217, A: 255}
 	}
+	return color.RGBA{R: 217, G: 217, B: 217, A: 255}
 }
 
 func NewDotCanvas(d Dot) *canvas.Circle {
@@ -351,7 +360,8 @@ type Game struct {
 	BoardSizePower   int
 	AIPlayer1        bool
 	AIPlayer2        bool
-	Record           bool
+	Finished         bool
+	LockState        bool
 	DotCanvases      map[Dot]*canvas.Circle
 	EdgesCanvases    map[Edge]*canvas.Line
 	BoxesCanvases    map[Box]*canvas.Rectangle
@@ -366,13 +376,6 @@ type Game struct {
 }
 
 func NewGame(AIPlayer1, AIPlayer2 bool) *Game {
-	if Record {
-		logFilePath := filepath.Join("game log", time.Now().Format(time.DateTime)+".log")
-		if err := colog.OpenLog(logFilePath); err != nil {
-			panic(err)
-		}
-	}
-
 	game := &Game{
 		AIPlayer1:        AIPlayer1,
 		AIPlayer2:        AIPlayer2,
@@ -387,7 +390,6 @@ func NewGame(AIPlayer1, AIPlayer2 bool) *Game {
 		PlayerScore:      map[Turn]int{Player1Turn: 0, Player2Turn: 0},
 		GlobalBoard:      make(Board),
 	}
-
 	for _, b := range Boxes {
 		game.BoxesCanvases[b] = NewBoxCanvas(b)
 		game.Container.Add(game.BoxesCanvases[b])
@@ -432,11 +434,20 @@ func NewGame(AIPlayer1, AIPlayer2 bool) *Game {
 			}
 		}
 	}()
+	if LogRecord {
+		logFilePath := filepath.Join("game log", time.Now().Format(time.DateTime)+".log")
+		if err := colog.OpenLog(logFilePath); err != nil {
+			colog.Error(err)
+		}
+	}
 	colog.Info("GAME START!")
 	return game
 }
 
 func (game *Game) AddEdge(e Edge) {
+	if game.Finished {
+		return
+	}
 	game.mu.Lock()
 	defer game.mu.Unlock()
 	if _, c := game.GlobalBoard[e]; c {
@@ -500,15 +511,6 @@ func (game *Game) AddEdge(e Edge) {
 		} else if game.PlayerScore[Player1Turn] == game.PlayerScore[Player2Turn] {
 			colog.Infof("Draw!")
 		}
-		MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
-			if event.Name == fyne.KeyR {
-				newGame := NewGame(true, true)
-				App.Settings().SetTheme(newGame)
-				MainWindow.SetContent(newGame.Container)
-			} else if event.Name == fyne.KeyQ {
-				MainWindow.Close()
-			}
-		})
 		return
 	}
 	if game.AIPlayer1 && game.NowTurn == Player1Turn {
@@ -518,6 +520,8 @@ func (game *Game) AddEdge(e Edge) {
 	}
 }
 
+func (game *Game) Over() { game.Finished = true }
+
 func (game *Game) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
 	if GlobalSystemColor != variant {
 		GlobalSystemColor = variant
@@ -525,7 +529,7 @@ func (game *Game) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) col
 			circle.FillColor = GetDotCanvasColor()
 		}
 		for box, rectangle := range game.BoxesCanvases {
-			if _, c := game.BoxesFilledColor[box]; c {
+			if _, c := game.BoxesFilledColor[box]; !c {
 				rectangle.FillColor = GetThemeColor()
 			}
 		}
@@ -547,11 +551,89 @@ func (game *Game) Font(style fyne.TextStyle) fyne.Resource { return theme.Defaul
 
 func (game *Game) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultTheme().Size(name) }
 
+func Reset(AIPlayer1, AIPlayer2 bool) {
+	NowGame.Over()
+	NowGame = NewGame(AIPlayer1, AIPlayer2)
+	App.Settings().SetTheme(NowGame)
+	MainWindow.SetContent(NowGame.Container)
+}
+
 func main() {
-	game := NewGame(true, true)
-	App.Settings().SetTheme(game)
-	MainWindow.SetContent(game.Container)
-	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
+	SetBoardSize(6)
+	MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
+		NowGame.mu.Lock()
+		defer NowGame.mu.Unlock()
+		switch event.Name {
+		case fyne.Key0:
+			Reset(false, false)
+		case fyne.Key1:
+			Reset(true, false)
+		case fyne.Key2:
+			Reset(false, true)
+		case fyne.Key3:
+			Reset(true, true)
+		case fyne.KeyF1:
+			SetBoardSize(1)
+			Reset(false, false)
+		case fyne.KeyF2:
+			SetBoardSize(2)
+			Reset(false, false)
+		case fyne.KeyF3:
+			SetBoardSize(3)
+			Reset(false, false)
+		case fyne.KeyF4:
+			SetBoardSize(4)
+			Reset(false, false)
+		case fyne.KeyF5:
+			SetBoardSize(5)
+			Reset(false, false)
+		case fyne.KeyF6:
+			SetBoardSize(6)
+			Reset(false, false)
+		case fyne.KeyF7:
+			SetBoardSize(7)
+			Reset(false, false)
+		case fyne.KeyF8:
+			SetBoardSize(8)
+			Reset(false, false)
+		case fyne.KeyF9:
+			SetBoardSize(9)
+			Reset(false, false)
+		case fyne.KeyF10:
+			SetBoardSize(10)
+			Reset(false, false)
+		case fyne.KeyF11:
+			SetBoardSize(11)
+			Reset(false, false)
+		case fyne.KeyF12:
+			SetBoardSize(12)
+			Reset(false, false)
+		case fyne.KeyQ:
+			NowGame.Over()
+			MainWindow.Close()
+			colog.Info("Game Closed")
+		case fyne.KeySpace:
+			if !NowGame.LockState {
+				colog.Info("Game Paused")
+				NowGame.mu.Lock()
+			} else {
+				colog.Info("Game Continues")
+				NowGame.mu.Unlock()
+			}
+			NowGame.LockState = !NowGame.LockState
+		case fyne.KeyL:
+			if LogRecord {
+				_ = colog.OpenLog("")
+				colog.Info("Log Closed")
+			} else {
+				colog.Info("Start Log")
+			}
+			LogRecord = !LogRecord
+		default:
+			colog.Error("Unidentified Input Key:", event.Name)
+		}
+	})
+	Reset(false, false)
 	MainWindow.SetFixedSize(true)
 	MainWindow.ShowAndRun()
 }
