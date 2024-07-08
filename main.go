@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -34,8 +33,8 @@ const (
 const (
 	BoardSize         = 6
 	BoardSizePower    = BoardSize * BoardSize
-	AIPlayer1         = true
-	AIPlayer2         = true
+	AIPlayer1         = false
+	AIPlayer2         = false
 	DotDistance       = 75
 	DotWidth          = DotDistance / 5
 	DotMargin         = DotDistance / 3 * 2
@@ -45,20 +44,12 @@ const (
 	Goroutines        = 32
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / AnimationSteps
-	Record            = false
+	Record            = true
 )
 
-func NewGreyRGBA(x uint8) color.RGBA { return color.RGBA{R: x, G: x, B: x, A: 255} }
-
 var (
-	GlobalSystemColor      fyne.ThemeVariant
-	BrightThemeColor       = NewGreyRGBA(242)
-	CanvasBrightThemeColor = NewGreyRGBA(255)
-	ButtonBrightThemeColor = NewGreyRGBA(217)
-	DarkThemeColor         = NewGreyRGBA(43)
-	CanvasDarkThemeColor   = NewGreyRGBA(202)
-	ButtonDarkThemeColor   = NewGreyRGBA(65)
-	HighLightColor         = map[Turn]color.NRGBA{
+	GlobalSystemColor fyne.ThemeVariant
+	HighLightColor    = map[Turn]color.NRGBA{
 		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
 		Player2Turn: {R: 255, G: 30, B: 30, A: 128},
 	}
@@ -231,26 +222,26 @@ func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
 func getDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
 
 func getDotCanvasColor() color.Color {
-	if fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark {
-		return CanvasDarkThemeColor
+	if GlobalSystemColor == theme.VariantDark {
+		return color.RGBA{R: 202, G: 202, B: 202, A: 255}
 	} else {
-		return CanvasBrightThemeColor
+		return color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	}
 }
 
 func getThemeColor() color.Color {
-	if fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark {
-		return DarkThemeColor
+	if GlobalSystemColor == theme.VariantDark {
+		return color.RGBA{R: 43, G: 43, B: 43, A: 255}
 	} else {
-		return BrightThemeColor
+		return color.RGBA{R: 242, G: 242, B: 242, A: 255}
 	}
 }
 
 func getButtonColor() color.Color {
-	if fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark {
-		return ButtonDarkThemeColor
+	if GlobalSystemColor == theme.VariantDark {
+		return color.RGBA{R: 65, G: 65, B: 65, A: 255}
 	} else {
-		return ButtonBrightThemeColor
+		return color.RGBA{R: 217, G: 217, B: 217, A: 255}
 	}
 }
 
@@ -324,31 +315,32 @@ func AddEdge(e Edge) {
 					BoxesCanvases[box].FillColor = BoxesFilledColor[box]
 					BoxesCanvases[box].Refresh()
 				}()
+				ticker := time.NewTicker(AnimationStepTime)
+				defer ticker.Stop()
 				for {
 					for i := 0; i <= AnimationSteps; i++ {
 						if nowStep != len(GlobalBoard) {
 							return
 						}
-						time.Sleep(AnimationStepTime)
 						t := float64(i) / float64(AnimationSteps)
 						BoxesCanvases[box].FillColor = interpolateColor(TipColor, getThemeColor(), t)
 						BoxesCanvases[box].Refresh()
+						<-ticker.C
 					}
 					for i := 0; i <= AnimationSteps; i++ {
 						if nowStep != len(GlobalBoard) {
 							return
 						}
-						time.Sleep(AnimationStepTime)
 						t := float64(i) / float64(AnimationSteps)
 						BoxesCanvases[box].FillColor = interpolateColor(getThemeColor(), TipColor, t)
 						BoxesCanvases[box].Refresh()
+						<-ticker.C
 					}
 				}
 			}()
 		}
 	}
 	if nowStep == EdgesCount {
-		timer := time.NewTimer(2 * time.Second)
 		if PlayerScore[Player1Turn] > PlayerScore[Player2Turn] {
 			colog.Info("Player1 Win!")
 		} else if PlayerScore[Player1Turn] < PlayerScore[Player2Turn] {
@@ -356,10 +348,9 @@ func AddEdge(e Edge) {
 		} else if PlayerScore[Player1Turn] == PlayerScore[Player2Turn] {
 			colog.Infof("Draw!")
 		}
-		go func() {
-			<-timer.C
-			os.Exit(0)
-		}()
+		MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
+			MainWindow.Close()
+		})
 		return
 	}
 	if AIPlayer1 && NowTurn == Player1Turn {
@@ -440,13 +431,11 @@ func GetBestEdge() (bestEdge Edge) {
 	return
 }
 
-type CustomTheme struct{}
+type GameTheme struct{}
 
-func (m CustomTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	nowSystemColor := fyne.CurrentApp().Settings().ThemeVariant()
-	if GlobalSystemColor != nowSystemColor {
-		defer Container.Refresh()
-		GlobalSystemColor = nowSystemColor
+func (m GameTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if GlobalSystemColor != variant {
+		GlobalSystemColor = variant
 		for _, circle := range DotCanvases {
 			circle.FillColor = getDotCanvasColor()
 		}
@@ -455,6 +444,7 @@ func (m CustomTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) 
 				rectangle.FillColor = getThemeColor()
 			}
 		}
+		Container.Refresh()
 	}
 	switch name {
 	case theme.ColorNameBackground:
@@ -466,25 +456,26 @@ func (m CustomTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) 
 	}
 }
 
-func (m CustomTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
+func (m GameTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 	return theme.DefaultTheme().Icon(name)
 }
 
-func (m CustomTheme) Font(style fyne.TextStyle) fyne.Resource {
+func (m GameTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return theme.DefaultTheme().Font(style)
 }
 
-func (m CustomTheme) Size(name fyne.ThemeSizeName) float32 {
+func (m GameTheme) Size(name fyne.ThemeSizeName) float32 {
 	return theme.DefaultTheme().Size(name)
 }
 
 func main() {
 	if Record {
-		logFilePath := filepath.Join("gamelog", time.Now().Format(time.DateTime)+".log")
+		logFilePath := filepath.Join("game log", time.Now().Format(time.DateTime)+".log")
 		if err := colog.OpenLog(logFilePath); err != nil {
 			panic(err)
 		}
 	}
+	App.Settings().SetTheme(&GameTheme{})
 	Container = container.NewWithoutLayout()
 	for _, b := range Boxes {
 		boxCanvas := NewBoxCanvas(b)
@@ -522,8 +513,6 @@ func main() {
 		DotCanvases[d] = dotCanvas
 		Container.Add(dotCanvas)
 	}
-	App.Settings().SetTheme(&CustomTheme{})
-	GlobalSystemColor = fyne.CurrentApp().Settings().ThemeVariant()
 	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
 	MainWindow.SetContent(Container)
 	MainWindow.SetFixedSize(true)
