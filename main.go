@@ -20,6 +20,8 @@ import (
 var (
 	BoardSize         = 6
 	BoardSizePower    = Dot(BoardSize * BoardSize)
+	AIPlayer1         = false
+	AIPlayer2         = false
 	DotDistance       = float32(80)
 	DotWidth          = DotDistance / 5
 	DotMargin         = DotDistance / 3 * 2
@@ -358,8 +360,6 @@ func GetBestEdge(board Board) (bestEdge Edge) {
 type Game struct {
 	BoardSize        int
 	BoardSizePower   int
-	AIPlayer1        bool
-	AIPlayer2        bool
 	Finished         bool
 	LockState        bool
 	DotCanvases      map[Dot]*canvas.Circle
@@ -375,10 +375,8 @@ type Game struct {
 	mu               sync.Mutex
 }
 
-func NewGame(AIPlayer1, AIPlayer2 bool) *Game {
+func NewGame() *Game {
 	game := &Game{
-		AIPlayer1:        AIPlayer1,
-		AIPlayer2:        AIPlayer2,
 		DotCanvases:      make(map[Dot]*canvas.Circle),
 		EdgesCanvases:    make(map[Edge]*canvas.Line),
 		BoxesCanvases:    make(map[Box]*canvas.Rectangle),
@@ -513,9 +511,9 @@ func (game *Game) AddEdge(e Edge) {
 		}
 		return
 	}
-	if game.AIPlayer1 && game.NowTurn == Player1Turn {
+	if AIPlayer1 && game.NowTurn == Player1Turn {
 		game.SignChan <- struct{}{}
-	} else if game.AIPlayer2 && game.NowTurn == Player2Turn {
+	} else if AIPlayer2 && game.NowTurn == Player2Turn {
 		game.SignChan <- struct{}{}
 	}
 }
@@ -551,9 +549,9 @@ func (game *Game) Font(style fyne.TextStyle) fyne.Resource { return theme.Defaul
 
 func (game *Game) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultTheme().Size(name) }
 
-func Reset(AIPlayer1, AIPlayer2 bool) {
+func Reset() {
 	NowGame.Over()
-	NowGame = NewGame(AIPlayer1, AIPlayer2)
+	NowGame = NewGame()
 	App.Settings().SetTheme(NowGame)
 	MainWindow.SetContent(NowGame.Container)
 }
@@ -564,50 +562,60 @@ func main() {
 		NowGame.mu.Lock()
 		defer NowGame.mu.Unlock()
 		switch event.Name {
-		case fyne.Key0:
-			Reset(false, false)
+		case fyne.KeyR:
+			Reset()
 		case fyne.Key1:
-			Reset(true, false)
+			if !AIPlayer1 && NowGame.NowTurn == Player1Turn {
+				colog.Info("AIPlayer1 ON")
+				NowGame.SignChan <- struct{}{}
+			} else if AIPlayer1 {
+				colog.Info("AIPlayer1 OFF")
+			}
+			AIPlayer1 = !AIPlayer1
 		case fyne.Key2:
-			Reset(false, true)
-		case fyne.Key3:
-			Reset(true, true)
+			if !AIPlayer2 && NowGame.NowTurn == Player2Turn {
+				colog.Info("AIPlayer2 ON")
+				NowGame.SignChan <- struct{}{}
+			} else if AIPlayer2 {
+				colog.Info("AIPlayer2 OFF")
+			}
+			AIPlayer2 = !AIPlayer2
 		case fyne.KeyF1:
 			SetBoardSize(1)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF2:
 			SetBoardSize(2)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF3:
 			SetBoardSize(3)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF4:
 			SetBoardSize(4)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF5:
 			SetBoardSize(5)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF6:
 			SetBoardSize(6)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF7:
 			SetBoardSize(7)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF8:
 			SetBoardSize(8)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF9:
 			SetBoardSize(9)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF10:
 			SetBoardSize(10)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF11:
 			SetBoardSize(11)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyF12:
 			SetBoardSize(12)
-			Reset(false, false)
+			Reset()
 		case fyne.KeyQ:
 			NowGame.Over()
 			MainWindow.Close()
@@ -633,7 +641,7 @@ func main() {
 			colog.Error("Unidentified Input Key:", event.Name)
 		}
 	})
-	NowGame = NewGame(false, false)
+	NowGame = NewGame()
 	App.Settings().SetTheme(NowGame)
 	MainWindow.SetContent(NowGame.Container)
 	MainWindow.SetFixedSize(true)
