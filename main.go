@@ -33,8 +33,8 @@ const (
 const (
 	BoardSize         = 6
 	BoardSizePower    = BoardSize * BoardSize
-	AIPlayer1         = false
-	AIPlayer2         = false
+	AIPlayer1         = true
+	AIPlayer2         = true
 	DotDistance       = 75
 	DotWidth          = DotDistance / 5
 	DotMargin         = DotDistance / 3 * 2
@@ -351,6 +351,10 @@ func AddEdge(e Edge) {
 		MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
 			MainWindow.Close()
 		})
+		go func() {
+			time.Sleep(10 * time.Second)
+			MainWindow.Close()
+		}()
 		return
 	}
 	if AIPlayer1 && NowTurn == Player1Turn {
@@ -384,7 +388,7 @@ func GetNextEdges(board Board) (bestEdge Edge) {
 	return
 }
 
-func GetBestEdge() (bestEdge Edge) {
+func GetBestEdge(board Board) (bestEdge Edge) {
 	var t atomic.Int64
 	var wg sync.WaitGroup
 	var latch sync.Mutex
@@ -395,7 +399,7 @@ func GetBestEdge() (bestEdge Edge) {
 		go func() {
 			defer wg.Done()
 			for t.Load() < SearchTime {
-				b := NewBoard(GlobalBoard)
+				b := NewBoard(board)
 				turn := Player1Turn
 				firstEdge := Edge(0)
 				score := 0
@@ -433,7 +437,7 @@ func GetBestEdge() (bestEdge Edge) {
 
 type GameTheme struct{}
 
-func (m GameTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+func (*GameTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
 	if GlobalSystemColor != variant {
 		GlobalSystemColor = variant
 		for _, circle := range DotCanvases {
@@ -456,17 +460,11 @@ func (m GameTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) co
 	}
 }
 
-func (m GameTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
-	return theme.DefaultTheme().Icon(name)
-}
+func (*GameTheme) Icon(name fyne.ThemeIconName) fyne.Resource { return theme.DefaultTheme().Icon(name) }
 
-func (m GameTheme) Font(style fyne.TextStyle) fyne.Resource {
-	return theme.DefaultTheme().Font(style)
-}
+func (*GameTheme) Font(style fyne.TextStyle) fyne.Resource { return theme.DefaultTheme().Font(style) }
 
-func (m GameTheme) Size(name fyne.ThemeSizeName) float32 {
-	return theme.DefaultTheme().Size(name)
-}
+func (*GameTheme) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultTheme().Size(name) }
 
 func main() {
 	if Record {
@@ -518,13 +516,13 @@ func main() {
 	MainWindow.SetFixedSize(true)
 	go func() {
 		if AIPlayer1 {
-			AddEdge(GetBestEdge())
+			AddEdge(GetBestEdge(GlobalBoard))
 		}
 		for range SignChan {
 			if AIPlayer1 && NowTurn == Player1Turn {
-				AddEdge(GetBestEdge())
+				AddEdge(GetBestEdge(GlobalBoard))
 			} else if AIPlayer2 && NowTurn == Player2Turn {
-				AddEdge(GetBestEdge())
+				AddEdge(GetBestEdge(GlobalBoard))
 			}
 		}
 	}()
