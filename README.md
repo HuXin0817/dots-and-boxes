@@ -2,7 +2,7 @@
 
 This is a Dots and Boxes game implemented in Go using the Fyne GUI library. The game supports both AI and human players and provides a visual interface to play the game.
 
-![](./demo.png)
+![demo](demo.png)
 
 ## Table of Contents
 
