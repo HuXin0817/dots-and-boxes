@@ -2,12 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
-	"path/filepath"
-	"sync"
-	"sync/atomic"
-	"time"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -15,26 +9,16 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/HuXin0817/colog"
-)
-
-type (
-	Turn  int
-	Dot   int
-	Box   int
-	Edge  int
-	Board map[Edge]struct{}
-)
-
-const (
-	Player1Turn Turn = 1
-	Player2Turn      = -Player1Turn
+	"image/color"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const (
 	BoardSize         = 6
 	BoardSizePower    = BoardSize * BoardSize
-	AIPlayer1         = true
-	AIPlayer2         = true
 	DotDistance       = 80
 	DotWidth          = DotDistance / 5
 	DotMargin         = DotDistance / 3 * 2
@@ -48,6 +32,9 @@ const (
 )
 
 var (
+	App        = app.New()
+	MainWindow = App.NewWindow("Dots and Boxes")
+
 	GlobalSystemColor fyne.ThemeVariant
 	HighLightColor    = map[Turn]color.NRGBA{
 		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
@@ -137,20 +124,11 @@ var (
 	}()
 )
 
-var (
-	DotCanvases      = make(map[Dot]*canvas.Circle)
-	EdgesCanvases    = make(map[Edge]*canvas.Line)
-	BoxesCanvases    = make(map[Box]*canvas.Rectangle)
-	EdgeButtons      = make(map[Edge]*widget.Button)
-	BoxesFilledColor = make(map[Box]color.Color)
-	Container        *fyne.Container
-	App              = app.New()
-	MainWindow       = App.NewWindow("Dots and Boxes")
-	SignChan         = make(chan struct{}, 1)
-	NowTurn          = Player1Turn
-	PlayerScore      = map[Turn]int{Player1Turn: 0, Player2Turn: 0}
-	GlobalBoard      = make(Board)
-	mu               sync.Mutex
+type Turn int
+
+const (
+	Player1Turn Turn = 1
+	Player2Turn      = -Player1Turn
 )
 
 func (t *Turn) ToString() string {
@@ -163,6 +141,8 @@ func (t *Turn) ToString() string {
 
 func (t *Turn) Change() { *t = -*t }
 
+type Dot int
+
 func NewDot(x, y int) Dot { return Dot(x*BoardSize + y) }
 
 func (d Dot) X() int { return int(d) / BoardSize }
@@ -170,6 +150,8 @@ func (d Dot) X() int { return int(d) / BoardSize }
 func (d Dot) Y() int { return int(d) % BoardSize }
 
 func (d Dot) ToString() string { return fmt.Sprintf("(%d, %d)", d.X(), d.Y()) }
+
+type Edge int
 
 func NewEdge(Dot1, Dot2 Dot) Edge { return Edge(Dot1*BoardSizePower + Dot2) }
 
@@ -181,7 +163,11 @@ func (e Edge) ToString() string { return e.Dot1().ToString() + " => " + e.Dot2()
 
 func (e Edge) NearBoxes() []Box { return EdgeNearBoxes[e] }
 
+type Box int
+
 func (b Box) Edges() []Edge { return BoxEdges[b] }
+
+type Board map[Edge]struct{}
 
 func NewBoard(board Board) Board {
 	b := make(Board, len(board))
@@ -223,9 +209,9 @@ func (b Board) ObtainsBoxes(e Edge) (obtainsBoxes []Box) {
 
 func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
 
-func getDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
+func GetDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
 
-func getDotCanvasColor() color.Color {
+func GetDotCanvasColor() color.Color {
 	if GlobalSystemColor == theme.VariantDark {
 		return color.RGBA{R: 202, G: 202, B: 202, A: 255}
 	} else {
@@ -233,7 +219,7 @@ func getDotCanvasColor() color.Color {
 	}
 }
 
-func getThemeColor() color.Color {
+func GetThemeColor() color.Color {
 	if GlobalSystemColor == theme.VariantDark {
 		return color.RGBA{R: 43, G: 43, B: 43, A: 255}
 	} else {
@@ -241,7 +227,7 @@ func getThemeColor() color.Color {
 	}
 }
 
-func getButtonColor() color.Color {
+func GetButtonColor() color.Color {
 	if GlobalSystemColor == theme.VariantDark {
 		return color.RGBA{R: 65, G: 65, B: 65, A: 255}
 	} else {
@@ -250,9 +236,9 @@ func getButtonColor() color.Color {
 }
 
 func NewDotCanvas(d Dot) *canvas.Circle {
-	newDotCanvas := canvas.NewCircle(getDotCanvasColor())
+	newDotCanvas := canvas.NewCircle(GetDotCanvasColor())
 	newDotCanvas.Resize(fyne.NewSize(DotWidth, DotWidth))
-	newDotCanvas.Move(fyne.NewPos(getDotPosition(d)))
+	newDotCanvas.Move(fyne.NewPos(GetDotPosition(d)))
 	return newDotCanvas
 }
 
@@ -261,7 +247,7 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 	y1 := transPosition(e.Dot1().Y()) + DotWidth/2
 	x2 := transPosition(e.Dot2().X()) + DotWidth/2
 	y2 := transPosition(e.Dot2().Y()) + DotWidth/2
-	newEdgeCanvas := canvas.NewLine(getDotCanvasColor())
+	newEdgeCanvas := canvas.NewLine(GetDotCanvasColor())
 	newEdgeCanvas.Position1 = fyne.NewPos(x1, y1)
 	newEdgeCanvas.Position2 = fyne.NewPos(x2, y2)
 	newEdgeCanvas.StrokeWidth = DotWidth
@@ -272,7 +258,7 @@ func NewBoxCanvas(box Box) *canvas.Rectangle {
 	d := Dot(box)
 	x := transPosition(d.X()) + DotWidth - 0.5
 	y := transPosition(d.Y()) + DotWidth - 0.5
-	newBoxCanvas := canvas.NewRectangle(getThemeColor())
+	newBoxCanvas := canvas.NewRectangle(GetThemeColor())
 	newBoxCanvas.Move(fyne.NewPos(x, y))
 	newBoxCanvas.Resize(fyne.NewSize(BoxSize, BoxSize))
 	return newBoxCanvas
@@ -286,86 +272,6 @@ func interpolateColor(c1, c2 color.Color, t float64) color.Color {
 	b := uint8((float64(b1)*(1-t) + float64(b2)*t) / 256)
 	a := uint8((float64(a1)*(1-t) + float64(a2)*t) / 256)
 	return color.RGBA{R: r, G: g, B: b, A: a}
-}
-
-func AddEdge(e Edge) {
-	mu.Lock()
-	defer mu.Unlock()
-	if _, c := GlobalBoard[e]; c {
-		return
-	}
-	defer Container.Refresh()
-	defer EdgeButtons[e].Hide()
-	nowStep := len(GlobalBoard)
-	obtainsBoxes := GlobalBoard.ObtainsBoxes(e)
-	score := len(obtainsBoxes)
-	for _, box := range obtainsBoxes {
-		BoxesCanvases[box].FillColor = FilledColor[NowTurn]
-		BoxesFilledColor[box] = FilledColor[NowTurn]
-	}
-	EdgesCanvases[e].StrokeColor = HighLightColor[NowTurn]
-	PlayerScore[NowTurn] += score
-	colog.Infof("Step: %d, Turn %s, Edge: %s, Player1 Score: %d, Player2 Score: %d", nowStep, NowTurn.ToString(), e.ToString(), PlayerScore[Player1Turn], PlayerScore[Player2Turn])
-	if score == 0 {
-		NowTurn.Change()
-	}
-	GlobalBoard[e] = struct{}{}
-	nowStep++
-	for _, box := range Boxes {
-		edgesCountInBox := GlobalBoard.EdgesCountInBox(box)
-		if edgesCountInBox == 3 {
-			go func() {
-				defer func() {
-					BoxesCanvases[box].FillColor = BoxesFilledColor[box]
-					BoxesCanvases[box].Refresh()
-				}()
-				ticker := time.NewTicker(AnimationStepTime)
-				defer ticker.Stop()
-				for {
-					for i := 0; i <= AnimationSteps; i++ {
-						if nowStep != len(GlobalBoard) {
-							return
-						}
-						t := float64(i) / float64(AnimationSteps)
-						BoxesCanvases[box].FillColor = interpolateColor(TipColor, getThemeColor(), t)
-						BoxesCanvases[box].Refresh()
-						<-ticker.C
-					}
-					for i := 0; i <= AnimationSteps; i++ {
-						if nowStep != len(GlobalBoard) {
-							return
-						}
-						t := float64(i) / float64(AnimationSteps)
-						BoxesCanvases[box].FillColor = interpolateColor(getThemeColor(), TipColor, t)
-						BoxesCanvases[box].Refresh()
-						<-ticker.C
-					}
-				}
-			}()
-		}
-	}
-	if nowStep == EdgesCount {
-		if PlayerScore[Player1Turn] > PlayerScore[Player2Turn] {
-			colog.Info("Player1 Win!")
-		} else if PlayerScore[Player1Turn] < PlayerScore[Player2Turn] {
-			colog.Info("Player2 Win!")
-		} else if PlayerScore[Player1Turn] == PlayerScore[Player2Turn] {
-			colog.Infof("Draw!")
-		}
-		MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
-			MainWindow.Close()
-		})
-		go func() {
-			time.Sleep(10 * time.Second)
-			MainWindow.Close()
-		}()
-		return
-	}
-	if AIPlayer1 && NowTurn == Player1Turn {
-		SignChan <- struct{}{}
-	} else if AIPlayer2 && NowTurn == Player2Turn {
-		SignChan <- struct{}{}
-	}
 }
 
 func GetNextEdges(board Board) (bestEdge Edge) {
@@ -440,93 +346,212 @@ func GetBestEdge(board Board) (bestEdge Edge) {
 	return
 }
 
-type GameTheme struct{}
-
-func (*GameTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	if GlobalSystemColor != variant {
-		GlobalSystemColor = variant
-		for _, circle := range DotCanvases {
-			circle.FillColor = getDotCanvasColor()
-		}
-		for box, rectangle := range BoxesCanvases {
-			if _, c := BoxesFilledColor[box]; c {
-				rectangle.FillColor = getThemeColor()
-			}
-		}
-		Container.Refresh()
-	}
-	switch name {
-	case theme.ColorNameBackground:
-		return getThemeColor()
-	case theme.ColorNameButton:
-		return getButtonColor()
-	default:
-		return theme.DefaultTheme().Color(name, variant)
-	}
+type Game struct {
+	BoardSize        int
+	BoardSizePower   int
+	AIPlayer1        bool
+	AIPlayer2        bool
+	Record           bool
+	DotCanvases      map[Dot]*canvas.Circle
+	EdgesCanvases    map[Edge]*canvas.Line
+	BoxesCanvases    map[Box]*canvas.Rectangle
+	EdgeButtons      map[Edge]*widget.Button
+	BoxesFilledColor map[Box]color.Color
+	Container        *fyne.Container
+	SignChan         chan struct{}
+	NowTurn          Turn
+	PlayerScore      map[Turn]int
+	GlobalBoard      Board
+	mu               sync.Mutex
 }
 
-func (*GameTheme) Icon(name fyne.ThemeIconName) fyne.Resource { return theme.DefaultTheme().Icon(name) }
-
-func (*GameTheme) Font(style fyne.TextStyle) fyne.Resource { return theme.DefaultTheme().Font(style) }
-
-func (*GameTheme) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultTheme().Size(name) }
-
-func main() {
+func NewGame(AIPlayer1, AIPlayer2 bool) *Game {
 	if Record {
 		logFilePath := filepath.Join("game log", time.Now().Format(time.DateTime)+".log")
 		if err := colog.OpenLog(logFilePath); err != nil {
 			panic(err)
 		}
 	}
-	App.Settings().SetTheme(&GameTheme{})
-	Container = container.NewWithoutLayout()
+
+	game := &Game{
+		AIPlayer1:        AIPlayer1,
+		AIPlayer2:        AIPlayer2,
+		DotCanvases:      make(map[Dot]*canvas.Circle),
+		EdgesCanvases:    make(map[Edge]*canvas.Line),
+		BoxesCanvases:    make(map[Box]*canvas.Rectangle),
+		EdgeButtons:      make(map[Edge]*widget.Button),
+		BoxesFilledColor: make(map[Box]color.Color),
+		Container:        container.NewWithoutLayout(),
+		SignChan:         make(chan struct{}, 1),
+		NowTurn:          Player1Turn,
+		PlayerScore:      map[Turn]int{Player1Turn: 0, Player2Turn: 0},
+		GlobalBoard:      make(Board),
+	}
+
 	for _, b := range Boxes {
-		BoxesCanvases[b] = NewBoxCanvas(b)
-		Container.Add(BoxesCanvases[b])
+		game.BoxesCanvases[b] = NewBoxCanvas(b)
+		game.Container.Add(game.BoxesCanvases[b])
 	}
 	for e := range EdgesSet {
-		EdgesCanvases[e] = NewEdgeCanvas(e)
-		Container.Add(EdgesCanvases[e])
-		EdgeButtons[e] = widget.NewButton("", func() {
-			if AIPlayer1 && NowTurn == Player1Turn {
+		game.EdgesCanvases[e] = NewEdgeCanvas(e)
+		game.Container.Add(game.EdgesCanvases[e])
+		game.EdgeButtons[e] = widget.NewButton("", func() {
+			if AIPlayer1 && game.NowTurn == Player1Turn {
 				return
-			} else if AIPlayer2 && NowTurn == Player2Turn {
+			} else if AIPlayer2 && game.NowTurn == Player2Turn {
 				return
 			}
-			AddEdge(e)
+			game.AddEdge(e)
 		})
 		if e.Dot1().X() == e.Dot2().X() {
-			EdgeButtons[e].Resize(fyne.NewSize(DotWidth, DotDistance))
-			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - EdgeButtons[e].Size().Width/2 + DotWidth/2
-			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - EdgeButtons[e].Size().Height/2 + DotWidth/2
-			EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
+			game.EdgeButtons[e].Resize(fyne.NewSize(DotWidth, DotDistance))
+			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - game.EdgeButtons[e].Size().Width/2 + DotWidth/2
+			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - game.EdgeButtons[e].Size().Height/2 + DotWidth/2
+			game.EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
 		} else {
-			EdgeButtons[e].Resize(fyne.NewSize(DotDistance, DotWidth))
-			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - EdgeButtons[e].Size().Width/2 + DotWidth/2
-			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - EdgeButtons[e].Size().Height/2 + DotWidth/2
-			EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
+			game.EdgeButtons[e].Resize(fyne.NewSize(DotDistance, DotWidth))
+			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - game.EdgeButtons[e].Size().Width/2 + DotWidth/2
+			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - game.EdgeButtons[e].Size().Height/2 + DotWidth/2
+			game.EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
 		}
-		Container.Add(EdgeButtons[e])
+		game.Container.Add(game.EdgeButtons[e])
 	}
 	for _, d := range Dots {
-		DotCanvases[d] = NewDotCanvas(d)
-		Container.Add(DotCanvases[d])
+		game.DotCanvases[d] = NewDotCanvas(d)
+		game.Container.Add(game.DotCanvases[d])
 	}
-	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
-	MainWindow.SetContent(Container)
-	MainWindow.SetFixedSize(true)
 	go func() {
 		if AIPlayer1 {
-			AddEdge(GetBestEdge(GlobalBoard))
+			game.AddEdge(GetBestEdge(game.GlobalBoard))
 		}
-		for range SignChan {
-			if AIPlayer1 && NowTurn == Player1Turn {
-				AddEdge(GetBestEdge(GlobalBoard))
-			} else if AIPlayer2 && NowTurn == Player2Turn {
-				AddEdge(GetBestEdge(GlobalBoard))
+		for range game.SignChan {
+			if AIPlayer1 && game.NowTurn == Player1Turn {
+				game.AddEdge(GetBestEdge(game.GlobalBoard))
+			} else if AIPlayer2 && game.NowTurn == Player2Turn {
+				game.AddEdge(GetBestEdge(game.GlobalBoard))
 			}
 		}
 	}()
 	colog.Info("GAME START!")
+	return game
+}
+
+func (game *Game) AddEdge(e Edge) {
+	game.mu.Lock()
+	defer game.mu.Unlock()
+	if _, c := game.GlobalBoard[e]; c {
+		return
+	}
+	defer game.Container.Refresh()
+	defer game.EdgeButtons[e].Hide()
+	nowStep := len(game.GlobalBoard)
+	obtainsBoxes := game.GlobalBoard.ObtainsBoxes(e)
+	score := len(obtainsBoxes)
+	for _, box := range obtainsBoxes {
+		game.BoxesCanvases[box].FillColor = FilledColor[game.NowTurn]
+		game.BoxesFilledColor[box] = FilledColor[game.NowTurn]
+	}
+	game.EdgesCanvases[e].StrokeColor = HighLightColor[game.NowTurn]
+	game.PlayerScore[game.NowTurn] += score
+	colog.Infof("Step: %d, Turn %s, Edge: %s, Player1 Score: %d, Player2 Score: %d", nowStep, game.NowTurn.ToString(), e.ToString(), game.PlayerScore[Player1Turn], game.PlayerScore[Player2Turn])
+	if score == 0 {
+		game.NowTurn.Change()
+	}
+	game.GlobalBoard[e] = struct{}{}
+	nowStep++
+	for _, box := range Boxes {
+		edgesCountInBox := game.GlobalBoard.EdgesCountInBox(box)
+		if edgesCountInBox == 3 {
+			go func() {
+				defer func() {
+					game.BoxesCanvases[box].FillColor = game.BoxesFilledColor[box]
+					game.BoxesCanvases[box].Refresh()
+				}()
+				ticker := time.NewTicker(AnimationStepTime)
+				defer ticker.Stop()
+				for {
+					for i := 0; i <= AnimationSteps; i++ {
+						if nowStep != len(game.GlobalBoard) {
+							return
+						}
+						t := float64(i) / float64(AnimationSteps)
+						game.BoxesCanvases[box].FillColor = interpolateColor(TipColor, GetThemeColor(), t)
+						game.BoxesCanvases[box].Refresh()
+						<-ticker.C
+					}
+					for i := 0; i <= AnimationSteps; i++ {
+						if nowStep != len(game.GlobalBoard) {
+							return
+						}
+						t := float64(i) / float64(AnimationSteps)
+						game.BoxesCanvases[box].FillColor = interpolateColor(GetThemeColor(), TipColor, t)
+						game.BoxesCanvases[box].Refresh()
+						<-ticker.C
+					}
+				}
+			}()
+		}
+	}
+	if nowStep == EdgesCount {
+		if game.PlayerScore[Player1Turn] > game.PlayerScore[Player2Turn] {
+			colog.Info("Player1 Win!")
+		} else if game.PlayerScore[Player1Turn] < game.PlayerScore[Player2Turn] {
+			colog.Info("Player2 Win!")
+		} else if game.PlayerScore[Player1Turn] == game.PlayerScore[Player2Turn] {
+			colog.Infof("Draw!")
+		}
+		MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
+			if event.Name == fyne.KeyR {
+				newGame := NewGame(true, true)
+				App.Settings().SetTheme(newGame)
+				MainWindow.SetContent(newGame.Container)
+			} else if event.Name == fyne.KeyQ {
+				MainWindow.Close()
+			}
+		})
+		return
+	}
+	if game.AIPlayer1 && game.NowTurn == Player1Turn {
+		game.SignChan <- struct{}{}
+	} else if game.AIPlayer2 && game.NowTurn == Player2Turn {
+		game.SignChan <- struct{}{}
+	}
+}
+
+func (game *Game) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	if GlobalSystemColor != variant {
+		GlobalSystemColor = variant
+		for _, circle := range game.DotCanvases {
+			circle.FillColor = GetDotCanvasColor()
+		}
+		for box, rectangle := range game.BoxesCanvases {
+			if _, c := game.BoxesFilledColor[box]; c {
+				rectangle.FillColor = GetThemeColor()
+			}
+		}
+		game.Container.Refresh()
+	}
+	switch name {
+	case theme.ColorNameBackground:
+		return GetThemeColor()
+	case theme.ColorNameButton:
+		return GetButtonColor()
+	default:
+		return theme.DefaultTheme().Color(name, variant)
+	}
+}
+
+func (game *Game) Icon(name fyne.ThemeIconName) fyne.Resource { return theme.DefaultTheme().Icon(name) }
+
+func (game *Game) Font(style fyne.TextStyle) fyne.Resource { return theme.DefaultTheme().Font(style) }
+
+func (game *Game) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultTheme().Size(name) }
+
+func main() {
+	game := NewGame(true, true)
+	App.Settings().SetTheme(game)
+	MainWindow.SetContent(game.Container)
+	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
+	MainWindow.SetFixedSize(true)
 	MainWindow.ShowAndRun()
 }
