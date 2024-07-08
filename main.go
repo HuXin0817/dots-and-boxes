@@ -54,8 +54,8 @@ var (
 	TipColor = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
 )
 
-func SetBoardSize(x int) {
-	BoardSize = x
+func SetBoardSize(size int) {
+	BoardSize = size
 	BoardSizePower = Dot(BoardSize * BoardSize)
 	MainWindowSize = DotDistance*float32(BoardSize) + DotMargin - 5
 	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
