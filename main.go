@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/HuXin0817/colog"
 )
@@ -40,14 +41,24 @@ const (
 	DotMargin         = DotDistance / 3 * 2
 	BoxSize           = DotDistance - DotWidth
 	MainWindowSize    = DotDistance*BoardSize + DotMargin
-	SearchTime        = 5e6
+	SearchTime        = 1e6
 	Goroutines        = 32
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / AnimationSteps
+	Record            = false
 )
 
+func NewGreyRGBA(x uint8) color.RGBA { return color.RGBA{R: x, G: x, B: x, A: 255} }
+
 var (
-	HighLightColor = map[Turn]color.NRGBA{
+	GlobalSystemColor      fyne.ThemeVariant
+	BrightThemeColor       = NewGreyRGBA(242)
+	CanvasBrightThemeColor = NewGreyRGBA(255)
+	ButtonBrightThemeColor = NewGreyRGBA(217)
+	DarkThemeColor         = NewGreyRGBA(43)
+	CanvasDarkThemeColor   = NewGreyRGBA(202)
+	ButtonDarkThemeColor   = NewGreyRGBA(65)
+	HighLightColor         = map[Turn]color.NRGBA{
 		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
 		Player2Turn: {R: 255, G: 30, B: 30, A: 128},
 	}
@@ -56,13 +67,14 @@ var (
 		Player2Turn: {R: 128, G: 30, B: 30, A: 128},
 	}
 	TipColor         = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
-	DefaultColor     = color.Black
+	DotCanvases      = make(map[Dot]*canvas.Circle)
 	EdgesCanvases    = make(map[Edge]*canvas.Line)
 	BoxesCanvases    = make(map[Box]*canvas.Rectangle)
 	EdgeButtons      = make(map[Edge]*widget.Button)
 	BoxesFilledColor = make(map[Box]color.Color)
 	Container        *fyne.Container
-	MainWindow       = app.New().NewWindow("Dots and Boxes")
+	App              = app.New()
+	MainWindow       = App.NewWindow("Dots and Boxes")
 	SignChan         = make(chan struct{}, 1)
 	NowTurn          = Player1Turn
 	PlayerScore      = map[Turn]int{Player1Turn: 0, Player2Turn: 0}
@@ -218,8 +230,32 @@ func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
 
 func getDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
 
+func getDotCanvasColor() color.Color {
+	if fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark {
+		return CanvasDarkThemeColor
+	} else {
+		return CanvasBrightThemeColor
+	}
+}
+
+func getThemeColor() color.Color {
+	if fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark {
+		return DarkThemeColor
+	} else {
+		return BrightThemeColor
+	}
+}
+
+func getButtonColor() color.Color {
+	if fyne.CurrentApp().Settings().ThemeVariant() == theme.VariantDark {
+		return ButtonDarkThemeColor
+	} else {
+		return ButtonBrightThemeColor
+	}
+}
+
 func NewDotCanvas(d Dot) *canvas.Circle {
-	newDotCanvas := canvas.NewCircle(color.White)
+	newDotCanvas := canvas.NewCircle(getDotCanvasColor())
 	newDotCanvas.Resize(fyne.NewSize(DotWidth, DotWidth))
 	newDotCanvas.Move(fyne.NewPos(getDotPosition(d)))
 	return newDotCanvas
@@ -230,7 +266,7 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 	y1 := transPosition(e.Dot1().Y()) + DotWidth/2
 	x2 := transPosition(e.Dot2().X()) + DotWidth/2
 	y2 := transPosition(e.Dot2().Y()) + DotWidth/2
-	newEdgeCanvas := canvas.NewLine(DefaultColor)
+	newEdgeCanvas := canvas.NewLine(getDotCanvasColor())
 	newEdgeCanvas.Position1 = fyne.NewPos(x1, y1)
 	newEdgeCanvas.Position2 = fyne.NewPos(x2, y2)
 	newEdgeCanvas.StrokeWidth = DotWidth
@@ -239,9 +275,9 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 
 func NewBoxCanvas(box Box) *canvas.Rectangle {
 	d := Dot(box)
-	x := transPosition(d.X()) + DotWidth
-	y := transPosition(d.Y()) + DotWidth
-	newBoxCanvas := canvas.NewRectangle(DefaultColor)
+	x := transPosition(d.X()) + DotWidth - 0.5
+	y := transPosition(d.Y()) + DotWidth - 0.5
+	newBoxCanvas := canvas.NewRectangle(getThemeColor())
 	newBoxCanvas.Move(fyne.NewPos(x, y))
 	newBoxCanvas.Resize(fyne.NewSize(BoxSize, BoxSize))
 	return newBoxCanvas
@@ -295,7 +331,7 @@ func AddEdge(e Edge) {
 						}
 						time.Sleep(AnimationStepTime)
 						t := float64(i) / float64(AnimationSteps)
-						BoxesCanvases[box].FillColor = interpolateColor(TipColor, DefaultColor, t)
+						BoxesCanvases[box].FillColor = interpolateColor(TipColor, getThemeColor(), t)
 						BoxesCanvases[box].Refresh()
 					}
 					for i := 0; i <= AnimationSteps; i++ {
@@ -304,7 +340,7 @@ func AddEdge(e Edge) {
 						}
 						time.Sleep(AnimationStepTime)
 						t := float64(i) / float64(AnimationSteps)
-						BoxesCanvases[box].FillColor = interpolateColor(DefaultColor, TipColor, t)
+						BoxesCanvases[box].FillColor = interpolateColor(getThemeColor(), TipColor, t)
 						BoxesCanvases[box].Refresh()
 					}
 				}
@@ -404,20 +440,57 @@ func GetBestEdge() (bestEdge Edge) {
 	return
 }
 
-func main() {
-	logFilePath := filepath.Join("gamelog", time.Now().Format(time.DateTime)+".log")
-	if err := colog.OpenLog(logFilePath); err != nil {
-		panic(err)
+type CustomTheme struct{}
+
+func (m CustomTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	nowSystemColor := fyne.CurrentApp().Settings().ThemeVariant()
+	if GlobalSystemColor != nowSystemColor {
+		defer Container.Refresh()
+		GlobalSystemColor = nowSystemColor
+		for _, circle := range DotCanvases {
+			circle.FillColor = getDotCanvasColor()
+		}
+		for box, rectangle := range BoxesCanvases {
+			if _, c := BoxesFilledColor[box]; c {
+				rectangle.FillColor = getThemeColor()
+			}
+		}
 	}
-	background := canvas.NewRectangle(DefaultColor)
-	background.Move(fyne.NewPos(0, 0))
-	background.Resize(fyne.NewSize(1e10, 1e10))
-	Container = container.NewWithoutLayout(background)
+	switch name {
+	case theme.ColorNameBackground:
+		return getThemeColor()
+	case theme.ColorNameButton:
+		return getButtonColor()
+	default:
+		return theme.DefaultTheme().Color(name, variant)
+	}
+}
+
+func (m CustomTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
+	return theme.DefaultTheme().Icon(name)
+}
+
+func (m CustomTheme) Font(style fyne.TextStyle) fyne.Resource {
+	return theme.DefaultTheme().Font(style)
+}
+
+func (m CustomTheme) Size(name fyne.ThemeSizeName) float32 {
+	return theme.DefaultTheme().Size(name)
+}
+
+func main() {
+	if Record {
+		logFilePath := filepath.Join("gamelog", time.Now().Format(time.DateTime)+".log")
+		if err := colog.OpenLog(logFilePath); err != nil {
+			panic(err)
+		}
+	}
+	Container = container.NewWithoutLayout()
 	for _, b := range Boxes {
 		boxCanvas := NewBoxCanvas(b)
 		BoxesCanvases[b] = boxCanvas
 		Container.Add(boxCanvas)
-		BoxesFilledColor[b] = DefaultColor
+		BoxesFilledColor[b] = getThemeColor()
 	}
 	for e := range EdgesSet {
 		edgeCanvas := NewEdgeCanvas(e)
@@ -433,24 +506,29 @@ func main() {
 		})
 		if e.Dot1().X() == e.Dot2().X() {
 			EdgeButtons[e].Resize(fyne.NewSize(DotWidth, DotDistance))
+			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - EdgeButtons[e].Size().Width/2 + DotWidth/2
+			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - EdgeButtons[e].Size().Height/2 + DotWidth/2
+			EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
 		} else {
 			EdgeButtons[e].Resize(fyne.NewSize(DotDistance, DotWidth))
+			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - EdgeButtons[e].Size().Width/2 + DotWidth/2
+			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - EdgeButtons[e].Size().Height/2 + DotWidth/2
+			EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
 		}
-		PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - EdgeButtons[e].Size().Width/2 + DotWidth/2
-		PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - EdgeButtons[e].Size().Height/2 + DotWidth/2
-		EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
 		Container.Add(EdgeButtons[e])
 	}
 	for _, d := range Dots {
 		dotCanvas := NewDotCanvas(d)
+		DotCanvases[d] = dotCanvas
 		Container.Add(dotCanvas)
 	}
+	App.Settings().SetTheme(&CustomTheme{})
+	GlobalSystemColor = fyne.CurrentApp().Settings().ThemeVariant()
 	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
 	MainWindow.SetContent(Container)
 	MainWindow.SetFixedSize(true)
 	go func() {
 		if AIPlayer1 {
-			time.Sleep(500 * time.Millisecond)
 			AddEdge(GetBestEdge())
 		}
 		for range SignChan {
