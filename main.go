@@ -207,7 +207,8 @@ func SetBoardSize(size int) {
 		}
 		BoxEdges[b] = edges
 	}
-	NewGame(true)
+	NewGame()
+	log.Printf("Game Start! BoardSize: %d\n", BoardSize)
 }
 
 func SetDotDistance(d float32) {
@@ -393,7 +394,7 @@ func GetBestEdge() (bestEdge Edge) {
 	return
 }
 
-func NewGame(withLog bool) {
+func NewGame() {
 	LockState = false
 	DotCanvases = make(map[Dot]*canvas.Circle)
 	EdgesCanvases = make(map[Edge]*canvas.Line)
@@ -451,9 +452,6 @@ func NewGame(withLog bool) {
 			mu.Unlock()
 		}
 	}()
-	if withLog {
-		log.Printf("Game Start! BoardSize: %d\n", BoardSize)
-	}
 	MainWindow.SetContent(Container)
 }
 
@@ -570,7 +568,7 @@ func StartAIPlayer2() {
 }
 
 func Recover(MoveRecord []Edge) {
-	NewGame(false)
+	NewGame()
 	for _, e := range MoveRecord {
 		AddEdge(e, false)
 	}
@@ -625,7 +623,7 @@ func main() {
 		defer Container.Refresh()
 		switch event.Name {
 		case fyne.KeyR:
-			NewGame(true)
+			SetBoardSize(BoardSize)
 		case fyne.Key1:
 			StartAIPlayer1()
 		case fyne.Key2:
