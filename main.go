@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,7 +21,6 @@ import (
 
 const (
 	MaxStepTime       = time.Second
-	Goroutines        = 32
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
 	DotDistance       = 80
@@ -30,6 +30,7 @@ const (
 )
 
 var (
+	Goroutines        = runtime.NumCPU()
 	BoardSize         = 6
 	BoardSizePower    = Dot(BoardSize * BoardSize)
 	AIPlayer1         atomic.Bool
