@@ -360,7 +360,6 @@ func GetBestEdge() (bestEdge Edge) {
 			defer wg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), MaxStepTime)
 			defer cancel()
-
 			for {
 				select {
 				case <-ctx.Done():
