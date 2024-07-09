@@ -2,10 +2,7 @@ module github.com/HuXin0817/dots-and-boxes
 
 go 1.22
 
-require (
-	fyne.io/fyne/v2 v2.4.5
-	github.com/HuXin0817/colog v0.0.1
-)
+require fyne.io/fyne/v2 v2.4.5
 
 require (
 	fyne.io/systray v1.11.0 // indirect
