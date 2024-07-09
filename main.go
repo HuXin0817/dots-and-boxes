@@ -23,10 +23,6 @@ const (
 	MaxStepTime       = time.Second
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
-	DotDistance       = 80
-	DotWidth          = DotDistance / 5
-	DotMargin         = DotDistance / 3 * 2
-	BoxSize           = DotDistance - DotWidth
 )
 
 var (
@@ -35,6 +31,10 @@ var (
 	BoardSizePower    = Dot(BoardSize * BoardSize)
 	AIPlayer1         atomic.Bool
 	AIPlayer2         atomic.Bool
+	DotDistance       = float32(80)
+	DotWidth          = DotDistance / 5
+	DotMargin         = DotDistance / 3 * 2
+	BoxSize           = DotDistance - DotWidth
 	MainWindowSize    = DotDistance*float32(BoardSize) + DotMargin - 5
 	App               = app.New()
 	MainWindow        = App.NewWindow("Dots and Boxes")
@@ -205,6 +205,17 @@ func SetBoardSize(size int) {
 		BoxEdges[b] = edges
 	}
 	EdgesCount = len(Edges)
+}
+
+func SetDotDistance(d float32) {
+	mu.Lock()
+	defer mu.Unlock()
+	DotDistance = d
+	DotWidth = DotDistance / 5
+	DotMargin = DotDistance / 3 * 2
+	BoxSize = DotDistance - DotWidth
+	MainWindowSize = DotDistance*float32(BoardSize) + DotMargin - 5
+	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
 }
 
 func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
@@ -392,6 +403,7 @@ type Game struct {
 	NowTurn          Turn
 	PlayerScore      map[Turn]int
 	GlobalBoard      Board
+	MoveRecord       []Edge
 }
 
 func NewGame() *Game {
@@ -469,6 +481,7 @@ func (game *Game) AddEdge(e Edge) {
 	if _, c := game.GlobalBoard[e]; c {
 		return
 	}
+	game.MoveRecord = append(game.MoveRecord, e)
 	defer game.Container.Refresh()
 	defer game.EdgeButtons[e].Hide()
 	nowStep := len(game.GlobalBoard)
@@ -618,20 +631,40 @@ func main() {
 			AIPlayer2.Store(!AIPlayer2.Load())
 			mu.Unlock()
 		case fyne.KeyUp:
-			fallthrough
-		case fyne.KeyEqual:
-			fallthrough
-		case fyne.KeyPlus:
 			SetBoardSize(BoardSize + 1)
 			Reset()
 		case fyne.KeyDown:
-			fallthrough
-		case fyne.KeyMinus:
 			if BoardSize <= 1 {
 				return
 			}
 			SetBoardSize(BoardSize - 1)
 			Reset()
+		case fyne.KeyLeft:
+			if DotDistance-10 <= 0 {
+				return
+			}
+			SetDotDistance(DotDistance - 10)
+			moveRecord := NowGame.MoveRecord
+			Reset()
+			for _, e := range moveRecord {
+				NowGame.AddEdge(e)
+			}
+		case fyne.KeyRight:
+			SetDotDistance(DotDistance + 10)
+			moveRecord := NowGame.MoveRecord
+			Reset()
+			for _, e := range moveRecord {
+				NowGame.AddEdge(e)
+			}
+		case fyne.KeyZ:
+			moveRecord := NowGame.MoveRecord
+			Reset()
+			if len(moveRecord) > 0 {
+				moveRecord = moveRecord[:len(moveRecord)-1]
+			}
+			for _, e := range moveRecord {
+				NowGame.AddEdge(e)
+			}
 		case fyne.KeyW:
 			SetBoardSize(6)
 			Reset()
