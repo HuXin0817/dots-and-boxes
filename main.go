@@ -211,25 +211,40 @@ func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
 
 func GetDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
 
-func GetDotCanvasColor() color.Color {
-	if GlobalSystemColor == theme.VariantDark {
-		return color.RGBA{R: 202, G: 202, B: 202, A: 255}
+func getEdgeButtonSizeAndPosition(e Edge) (size fyne.Size, pos fyne.Position) {
+	if e.Dot1().X() == e.Dot2().X() {
+		size = fyne.NewSize(DotWidth, DotDistance)
+		pos = fyne.NewPos(
+			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+DotWidth/2,
+			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+DotWidth/2,
+		)
+	} else {
+		size = fyne.NewSize(DotDistance, DotWidth)
+		pos = fyne.NewPos(
+			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+DotWidth/2,
+			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+DotWidth/2,
+		)
 	}
-	return color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	return
+}
+
+func getColorByVariant(lightColor, darkColor color.Color) color.Color {
+	if GlobalSystemColor == theme.VariantDark {
+		return darkColor
+	}
+	return lightColor
+}
+
+func GetDotCanvasColor() color.Color {
+	return getColorByVariant(color.RGBA{R: 255, G: 255, B: 255, A: 255}, color.RGBA{R: 202, G: 202, B: 202, A: 255})
 }
 
 func GetThemeColor() color.Color {
-	if GlobalSystemColor == theme.VariantDark {
-		return color.RGBA{R: 43, G: 43, B: 43, A: 255}
-	}
-	return color.RGBA{R: 242, G: 242, B: 242, A: 255}
+	return getColorByVariant(color.RGBA{R: 242, G: 242, B: 242, A: 255}, color.RGBA{R: 43, G: 43, B: 43, A: 255})
 }
 
 func GetButtonColor() color.Color {
-	if GlobalSystemColor == theme.VariantDark {
-		return color.RGBA{R: 65, G: 65, B: 65, A: 255}
-	}
-	return color.RGBA{R: 217, G: 217, B: 217, A: 255}
+	return getColorByVariant(color.RGBA{R: 217, G: 217, B: 217, A: 255}, color.RGBA{R: 65, G: 65, B: 65, A: 255})
 }
 
 func NewDotCanvas(d Dot) *canvas.Circle {
@@ -253,8 +268,8 @@ func NewEdgeCanvas(e Edge) *canvas.Line {
 
 func NewBoxCanvas(box Box) *canvas.Rectangle {
 	d := Dot(box)
-	x := transPosition(d.X()) + DotWidth - 0.5
-	y := transPosition(d.Y()) + DotWidth - 0.5
+	x := transPosition(d.X()) + DotWidth - 0.2
+	y := transPosition(d.Y()) + DotWidth - 0.2
 	newBoxCanvas := canvas.NewRectangle(GetThemeColor())
 	newBoxCanvas.Move(fyne.NewPos(x, y))
 	newBoxCanvas.Resize(fyne.NewSize(BoxSize, BoxSize))
@@ -321,18 +336,19 @@ func GetBestEdge(board Board) (bestEdge Edge) {
 		wg               sync.WaitGroup
 	)
 	wg.Add(Goroutines)
-	for i := range Goroutines {
+	for i := 0; i < Goroutines; i++ {
 		localSearchTime := make(map[Edge]int)
 		localSumScore := make(map[Edge]int)
-		go func() {
+		localSearchTimes[i] = localSearchTime
+		localSumScores[i] = localSumScore
+		go func(localSearchTime, localSumScore map[Edge]int) {
 			defer wg.Done()
 			ctx, cancel := context.WithTimeout(context.Background(), MaxStepTime)
 			defer cancel()
+
 			for {
 				select {
 				case <-ctx.Done():
-					localSearchTimes[i] = localSearchTime
-					localSumScores[i] = localSumScore
 					return
 				default:
 					b := NewBoard(board)
@@ -341,7 +357,7 @@ func GetBestEdge(board Board) (bestEdge Edge) {
 					localSumScore[firstEdge] += score
 				}
 			}
-		}()
+		}(localSearchTime, localSumScore)
 	}
 	wg.Wait()
 	for i := range Goroutines {
@@ -408,17 +424,9 @@ func NewGame() *Game {
 			game.AddEdge(e)
 			mu.Unlock()
 		})
-		if e.Dot1().X() == e.Dot2().X() {
-			game.EdgeButtons[e].Resize(fyne.NewSize(DotWidth, DotDistance))
-			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - game.EdgeButtons[e].Size().Width/2 + DotWidth/2
-			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - game.EdgeButtons[e].Size().Height/2 + DotWidth/2
-			game.EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
-		} else {
-			game.EdgeButtons[e].Resize(fyne.NewSize(DotDistance, DotWidth))
-			PosX := (transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2 - game.EdgeButtons[e].Size().Width/2 + DotWidth/2
-			PosY := (transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2 - game.EdgeButtons[e].Size().Height/2 + DotWidth/2
-			game.EdgeButtons[e].Move(fyne.NewPos(PosX, PosY))
-		}
+		size, pos := getEdgeButtonSizeAndPosition(e)
+		game.EdgeButtons[e].Resize(size)
+		game.EdgeButtons[e].Move(pos)
 		game.Container.Add(game.EdgeButtons[e])
 	}
 	for _, d := range Dots {
