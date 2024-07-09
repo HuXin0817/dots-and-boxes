@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	MaxStepTime       = time.Second
+	MaxStepTime       = time.Second / 10
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
 )
@@ -58,6 +58,7 @@ var (
 	GlobalBoard       = make(Board)
 	mu                sync.Mutex
 	TipColor          = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
+	AutoRestart       = false
 	HighLightColor    = map[Turn]color.NRGBA{
 		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
 		Player2Turn: {R: 255, G: 30, B: 30, A: 128},
@@ -522,6 +523,12 @@ func AddEdge(e Edge, withLog bool) {
 		} else if PlayerScore[Player1Turn] == PlayerScore[Player2Turn] {
 			SendMessage("Draw!")
 		}
+		if AutoRestart {
+			go func() {
+				time.Sleep(time.Second)
+				NewGame()
+			}()
+		}
 		return
 	}
 	if AIPlayer1.Load() && NowTurn == Player1Turn {
@@ -635,6 +642,13 @@ func main() {
 			StartAIPlayer1()
 		case fyne.Key2:
 			StartAIPlayer2()
+		case fyne.KeyA:
+			if !AutoRestart {
+				SendMessage("AutoRestart ON")
+			} else {
+				SendMessage("AutoRestart OFF")
+			}
+			AutoRestart = !AutoRestart
 		case fyne.KeyUp:
 			SetBoardSize(BoardSize + 1)
 		case fyne.KeyDown:
