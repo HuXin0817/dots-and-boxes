@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	MaxStepTime       = 1 * time.Second
+	MaxStepTime       = time.Second
 	Goroutines        = 32
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
