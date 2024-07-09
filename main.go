@@ -23,7 +23,7 @@ const (
 	Goroutines        = 32
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
-	DotDistance       = float32(80)
+	DotDistance       = 80
 	DotWidth          = DotDistance / 5
 	DotMargin         = DotDistance / 3 * 2
 	BoxSize           = DotDistance - DotWidth
