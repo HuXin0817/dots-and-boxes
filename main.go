@@ -446,7 +446,7 @@ func NewGame() *Game {
 			colog.Error(err)
 		}
 	}
-	colog.Info("GAME START!")
+	colog.Infof("Game Start! BoardSize: %d", BoardSize)
 	return game
 }
 
@@ -573,6 +573,7 @@ func Reset() {
 
 func main() {
 	SetBoardSize(6)
+	MainWindow.SetFixedSize(true)
 	MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
 		switch event.Name {
 		case fyne.KeyR:
@@ -649,10 +650,7 @@ func main() {
 			colog.Error("Unidentified Input Key:", event.Name)
 		}
 	})
-	MainWindow.SetFixedSize(true)
-	NowGame = NewGame()
-	App.Settings().SetTheme(NowGame)
-	MainWindow.SetContent(NowGame.Container)
+	Reset()
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		NowGame.Container.Refresh()
