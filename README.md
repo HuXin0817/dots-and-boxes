@@ -3,6 +3,8 @@
 This project implements the classic Dots and Boxes game using the Fyne library in Go. The game features a graphical user
 interface and allows for both human and AI players.
 
+![demo](demo.gif)
+
 ## Features
 
 - Graphical user interface using the Fyne library
