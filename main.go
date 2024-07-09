@@ -208,7 +208,7 @@ func SetBoardSize(size int) {
 		BoxEdges[b] = edges
 	}
 	NewGame()
-	log.Printf("Game Start! BoardSize: %d\n", BoardSize)
+	SendMessage(fmt.Sprintf("Game Start! BoardSize: %d", BoardSize))
 }
 
 func SetDotDistance(d float32) {
@@ -516,11 +516,11 @@ func AddEdge(e Edge, withLog bool) {
 	}
 	if nowStep == EdgesCount {
 		if PlayerScore[Player1Turn] > PlayerScore[Player2Turn] {
-			log.Println("Player1 Win!")
+			SendMessage("Player1 Win!")
 		} else if PlayerScore[Player1Turn] < PlayerScore[Player2Turn] {
-			log.Println("Player2 Win!")
+			SendMessage("Player2 Win!")
 		} else if PlayerScore[Player1Turn] == PlayerScore[Player2Turn] {
-			log.Println("Draw!")
+			SendMessage("Draw!")
 		}
 		return
 	}
@@ -539,7 +539,7 @@ func AddEdge(e Edge, withLog bool) {
 
 func StartAIPlayer1() {
 	if !AIPlayer1.Load() {
-		log.Println("AIPlayer1 ON")
+		SendMessage("AIPlayer1 ON")
 		if NowTurn == Player1Turn {
 			select {
 			case SignChan <- struct{}{}:
@@ -547,14 +547,14 @@ func StartAIPlayer1() {
 			}
 		}
 	} else {
-		log.Println("AIPlayer1 OFF")
+		SendMessage("AIPlayer1 OFF")
 	}
 	AIPlayer1.Store(!AIPlayer1.Load())
 }
 
 func StartAIPlayer2() {
 	if !AIPlayer2.Load() {
-		log.Println("AIPlayer2 ON")
+		SendMessage("AIPlayer2 ON")
 		if NowTurn == Player2Turn {
 			select {
 			case SignChan <- struct{}{}:
@@ -562,7 +562,7 @@ func StartAIPlayer2() {
 			}
 		}
 	} else {
-		log.Println("AIPlayer2 OFF")
+		SendMessage("AIPlayer2 OFF")
 	}
 	AIPlayer2.Store(!AIPlayer2.Load())
 }
@@ -599,6 +599,13 @@ func (GameTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 	}
 }
 
+func SendMessage(message string) {
+	App.SendNotification(&fyne.Notification{
+		Title:   "Dots-And-Boxes",
+		Content: message,
+	})
+}
+
 func (GameTheme) Icon(name fyne.ThemeIconName) fyne.Resource { return theme.DefaultTheme().Icon(name) }
 
 func (GameTheme) Font(style fyne.TextStyle) fyne.Resource { return theme.DefaultTheme().Font(style) }
@@ -609,10 +616,10 @@ func main() {
 	MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
 		if event.Name == fyne.KeySpace {
 			if !LockState {
-				log.Println("Game Paused")
+				SendMessage("Game Paused")
 				mu.Lock()
 			} else {
-				log.Println("Game Continues")
+				SendMessage("Game Continues")
 				mu.Unlock()
 			}
 			LockState = !LockState
@@ -647,7 +654,7 @@ func main() {
 			if len(moveRecord) > 0 {
 				e := moveRecord[len(moveRecord)-1]
 				moveRecord = moveRecord[:len(moveRecord)-1]
-				log.Printf("Undo Edge %s\n", e.ToString())
+				SendMessage("Undo Edge " + e.ToString())
 				Recover(moveRecord)
 			}
 		case fyne.KeyW:
@@ -655,10 +662,10 @@ func main() {
 				SetBoardSize(6)
 			}
 		case fyne.KeyQ:
+			SendMessage("Game Closed")
 			MainWindow.Close()
-			log.Println("Game Closed")
 		default:
-			log.Println("Unidentified Input Key:", event.Name)
+			SendMessage("Unidentified Input Key: " + string(event.Name))
 		}
 	})
 	MainWindow.SetFixedSize(true)
