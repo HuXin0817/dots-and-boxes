@@ -207,6 +207,7 @@ func SetBoardSize(size int) {
 		}
 		BoxEdges[b] = edges
 	}
+	NewGame(true)
 }
 
 func SetDotDistance(d float32) {
@@ -216,6 +217,8 @@ func SetDotDistance(d float32) {
 	BoxSize = DotDistance - DotWidth
 	MainWindowSize = DotDistance*float32(BoardSize) + DotMargin - 5
 	MainWindow.Resize(fyne.NewSize(MainWindowSize, MainWindowSize))
+	moveRecord := append([]Edge{}, MoveRecord...)
+	Recover(moveRecord)
 }
 
 func transPosition(x int) float32 { return DotMargin + float32(x)*DotDistance }
@@ -339,7 +342,7 @@ func Search(b Board) (firstEdge Edge, score int) {
 	return
 }
 
-func GetBestEdge(board Board) (bestEdge Edge) {
+func GetBestEdge() (bestEdge Edge) {
 	var (
 		globalSearchTime = make(map[Edge]int)
 		globalSumScore   = make(map[Edge]int)
@@ -363,7 +366,7 @@ func GetBestEdge(board Board) (bestEdge Edge) {
 				case <-ctx.Done():
 					return
 				default:
-					b := NewBoard(board)
+					b := NewBoard(GlobalBoard)
 					firstEdge, score := Search(b)
 					localSearchTime[firstEdge]++
 					localSumScore[firstEdge] += score
@@ -434,16 +437,16 @@ func NewGame(withLog bool) {
 	go func() {
 		if AIPlayer1.Load() {
 			mu.Lock()
-			AddEdge(GetBestEdge(GlobalBoard), true)
+			AddEdge(GetBestEdge(), true)
 			Container.Refresh()
 			mu.Unlock()
 		}
 		for range SignChan {
 			mu.Lock()
 			if AIPlayer1.Load() && NowTurn == Player1Turn {
-				AddEdge(GetBestEdge(GlobalBoard), true)
+				AddEdge(GetBestEdge(), true)
 			} else if AIPlayer2.Load() && NowTurn == Player2Turn {
-				AddEdge(GetBestEdge(GlobalBoard), true)
+				AddEdge(GetBestEdge(), true)
 			}
 			Container.Refresh()
 			mu.Unlock()
@@ -568,6 +571,7 @@ func StartAIPlayer2() {
 }
 
 func Recover(MoveRecord []Edge) {
+	NewGame(false)
 	for _, e := range MoveRecord {
 		AddEdge(e, false)
 	}
@@ -629,39 +633,29 @@ func main() {
 			StartAIPlayer2()
 		case fyne.KeyUp:
 			SetBoardSize(BoardSize + 1)
-			NewGame(true)
 		case fyne.KeyDown:
 			if BoardSize <= 1 {
 				return
 			}
 			SetBoardSize(BoardSize - 1)
-			NewGame(true)
 		case fyne.KeyLeft:
 			if DotDistance-10 <= 0 {
 				return
 			}
 			SetDotDistance(DotDistance - 10)
-			moveRecord := append([]Edge{}, MoveRecord...)
-			NewGame(false)
-			Recover(moveRecord)
 		case fyne.KeyRight:
 			SetDotDistance(DotDistance + 10)
-			moveRecord := append([]Edge{}, MoveRecord...)
-			NewGame(false)
-			Recover(moveRecord)
 		case fyne.KeyZ:
 			moveRecord := append([]Edge{}, MoveRecord...)
-			NewGame(false)
 			if len(moveRecord) > 0 {
 				e := moveRecord[len(moveRecord)-1]
 				moveRecord = moveRecord[:len(moveRecord)-1]
 				log.Printf("Undo Edge %s\n", e.ToString())
+				Recover(moveRecord)
 			}
-			Recover(moveRecord)
 		case fyne.KeyW:
 			if BoardSize != 6 {
 				SetBoardSize(6)
-				NewGame(true)
 			}
 		case fyne.KeyQ:
 			MainWindow.Close()
@@ -670,10 +664,9 @@ func main() {
 			log.Println("Unidentified Input Key:", event.Name)
 		}
 	})
-	SetBoardSize(6)
 	MainWindow.SetFixedSize(true)
+	SetBoardSize(6)
 	App.Settings().SetTheme(GameTheme{})
-	NewGame(true)
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		Container.Refresh()
