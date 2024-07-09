@@ -80,20 +80,6 @@ chances of winning.
 The game state can be logged to a file for debugging and analysis. Logging can be toggled on and off using the **L**
 key.
 
-### Adaptive theme
-
-- Dark
-
-![dark](dark_theme.png)
-
-- Bright
-
-![bright](bright_theme.png)
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a pull request or open an issue.
-
-## License
-
-This project is licensed under the Mulan PSL v2 License - see the [LICENSE](LICENSE) file for details.
