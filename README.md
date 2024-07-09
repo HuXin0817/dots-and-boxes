@@ -1,94 +1,99 @@
 # Dots and Boxes Game
 
-This project implements the classic Dots and Boxes game using the Fyne library for the UI in Go. The game supports both
-human and AI players, with configurable board sizes and various features for enhanced gameplay experience.
-
-![demo](demo.png)
+This project implements the classic Dots and Boxes game using the Fyne library in Go. The game features a graphical user
+interface and allows for both human and AI players.
 
 ## Features
 
-- **Configurable Board Size**: The board size can be set from 1x1 to 12x12 using function keys (F1-F12).
-- **AI Players**: The game supports AI players for both Player 1 and Player 2. You can configure AI players using the
-  number keys (0–3).
-- **Logging**: The game logs key events and actions to a log file. You can toggle logging on and off with the 'L' key.
-- **Pause and Resume**: You can pause and resume the game using the Space key.
-- **Theming**: The game adapts to the system's light and dark themes.
+- Graphical user interface using the Fyne library
+- Support for AI players
+- Adjustable board size
+- Game state logging
+- Key bindings for game controls
 
-## How to Play
+## Requirements
 
-### Controls
-
-- **Start/Close AIPlayer1**: `1` key
-- **Start/Close AIPlayer2**: `2` key
-- **Set the board size**: `F1-F12` to 1x1 up to 12x12.
-- **Pause/Resume**: `Space` key.
-- **Restart Game**: `R` key.
-- **Toggle Logging**: `L` key.
-- **Quit Game**: `Q` key.
-
-### Gameplay
-
-1. **Initialization**:
-
-- Set the desired board size using function keys (F1-F12).
-- Start a new game using number keys (0-3).
-
-2. **Making Moves**:
-
-- Click on the edge buttons to place edges.
-- The AI players will automatically make moves if enabled.
-
-3. **Winning**:
-
-- The game ends when all edges are placed.
-- The player with the most boxes filled wins.
+- Go 1.16 or later
+- Fyne v2.0.0 or later
+- [colog](https://github.com/HuXin0817/colog) library for logging
 
 ## Installation
 
-1. **Install Go**: Make sure Go is installed on your system. You can download it
-   from [golang.org](https://golang.org/dl/).
-2. **Clone Repository**: Clone this repository to your local machine.
+1. Install Go from [golang.org](https://golang.org/dl/).
+2. Set up Go environment variables as described in the Go [installation guide](https://golang.org/doc/install).
+3. Install Fyne:
 
 ```sh
-git clone https://github.com/yourusername/dots-and-boxes.git
+go get fyne.io/fyne/v2
 ```
 
-3. **Install Dependencies**: Navigate to the project directory and install the dependencies.
+4. Install the colog library:
 
 ```sh
-cd dots-and-boxes
-go get fyne.io/fyne/v2
 go get github.com/HuXin0817/colog
 ```
 
-4. **Run the Game**: Execute the main Go file to start the game.
+5. Clone the repository:
+
+```sh
+git clone https://github.com/HuXin0817/dots-and-boxes.git
+cd dots-and-boxes
+```
+
+## Running the Game
+
+To run the game, use the following command:
 
 ```sh
 go run main.go
 ```
 
-## Code Structure
+## Controls
 
-- **main.go**: Contains the main logic and game loop.
-- **Game Struct**: Defines the game state, including board, players, and UI elements.
-- **Edge, Box, Dot Structs**: Represent the elements of the board.
-- **AI Logic**: Implements AI strategies for making moves.
+- **R**: Reset the game
+- **1**: Toggle AI player 1
+- **2**: Toggle AI player 2
+- **+**/**=**/**Up Arrow**: Increase board size
+- **-**/**Down Arrow**: Decrease board size
+- **W**: Set board size to 6x6
+- **Q**: Quit the game
+- **Space**: Pause/Continue the game
+- **L**: Toggle game state logging
 
-## Dependencies
+## Game Structure
 
-- **Fyne**: A cross-platform GUI toolkit for Go.
-- **colog**: A simple logging library for Go.
+The game is implemented using several key structs and types:
 
-## Future Improvements
+- **Game**: Manages the game state, including the board, player scores, and turn management.
+- **Board**: Represents the game board and manages the edges and boxes.
+- **Dot**: Represents a dot on the board.
+- **Edge**: Represents an edge between two dots.
+- **Box**: Represents a box formed by four edges.
 
-- Enhance AI strategies for more competitive gameplay.
-- Add a save/load feature to persist game state.
-- Improve UI for better user experience.
+### AI Player
+
+The AI player selects the best edge to add by evaluating possible moves and using a scoring algorithm to maximize its
+chances of winning.
+
+### Logging
+
+The game state can be logged to a file for debugging and analysis. Logging can be toggled on and off using the **L**
+key.
+
+### Adaptive theme
+
+- Dark
+
+![dark](dark_theme.png)
+
+- Bright
+
+![bright](bright_theme.png)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a pull request or open an issue.
 
 ## License
 
-This project is licensed under the MIT License.
-
----
-
-Enjoy playing Dots and Boxes!
+This project is licensed under the Mulan PSL v2 License - see the [LICENSE](LICENSE) file for details.
