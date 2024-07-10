@@ -36,7 +36,8 @@ var (
 	BoxSize           float32
 	MainWindowSize    float32
 	GlobalSystemColor fyne.ThemeVariant
-	LockState         bool
+	PauseState        bool
+	AutoRestart       bool
 	EdgesCount        int
 	Dots              []Dot
 	Boxes             []Box
@@ -52,12 +53,11 @@ var (
 	SignChan          chan struct{}
 	MoveRecord        []Edge
 	GlobalBoard       Board
-	NowTurn           = Player1Turn
-	PlayerScore       = map[Turn]int{Player1Turn: 0, Player2Turn: 0}
+	NowTurn           Turn
+	PlayerScore       map[Turn]int
 	mu                sync.Mutex
 	boxCanvasMu       sync.Mutex
 	TipColor          = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
-	AutoRestart       = false
 	HighLightColor    = map[Turn]color.NRGBA{
 		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
 		Player2Turn: {R: 255, G: 30, B: 30, A: 128},
@@ -390,7 +390,7 @@ func Restart(boardSize int) {
 		}
 		BoxEdges[b] = edges
 	}
-	LockState = false
+	PauseState = false
 	DotCanvases = make(map[Dot]*canvas.Circle)
 	EdgesCanvases = make(map[Edge]*canvas.Line)
 	BoxesCanvases = make(map[Box]*canvas.Rectangle)
@@ -628,14 +628,14 @@ func (GameTheme) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultThe
 func main() {
 	MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
 		if event.Name == fyne.KeySpace {
-			if !LockState {
+			if !PauseState {
 				SendMessage("Game Paused")
 				mu.Lock()
 			} else {
 				SendMessage("Game Continues")
 				mu.Unlock()
 			}
-			LockState = !LockState
+			PauseState = !PauseState
 			return
 		}
 		mu.Lock()
