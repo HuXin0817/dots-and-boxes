@@ -1,87 +1,88 @@
 # Dots and Boxes Game
 
-This project implements the classic Dots and Boxes game using the Fyne library in Go. The game features a graphical user
-interface and allows for both human and AI players.
+This repository contains the implementation of the Dots and Boxes game using the Fyne library in Go. The game features AI players, scoring mechanisms, and a graphical representation of the board and game elements.
 
 ![demo](demo.gif)
 
 ## Features
 
-- Graphical user interface using the Fyne library
-- Support for AI players
-- Adjustable board size
-- Game state logging
-- Key bindings for game controls
-
-## Requirements
-
-- Go 1.16 or later
-- Fyne v2.0.0 or later
-- [colog](https://github.com/HuXin0817/colog) library for logging
+- **Graphical User Interface:** The game uses the Fyne library for a user-friendly and cross-platform graphical interface.
+- **AI Players:** Options to enable AI for Player 1 and Player 2.
+- **Scoring Mechanism:** Real-time score updates for players.
+- **Animation:** Smooth animations for visual feedback.
+- **Music:** Background music and sound effects for moves and scores.
+- **Responsive Board:** The board size and dot distance can be adjusted dynamically.
+- **Game Controls:** Various controls and shortcuts for gameplay.
 
 ## Installation
 
-1. Install Go from [golang.org](https://golang.org/dl/).
-2. Set up Go environment variables as described in the Go [installation guide](https://golang.org/doc/install).
-3. Install Fyne:
+To run the game, you need to have Go installed on your system. Follow the steps below to set up the project:
 
-```sh
-go get fyne.io/fyne/v2
-```
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/dots-and-boxes.git
+   cd dots-and-boxes
+   ```
 
-4. Install the colog library:
+2. **Install dependencies:**
+   ```bash
+   go mod tidy
+   ```
 
-```sh
-go get github.com/HuXin0817/colog
-```
+3. **Run the game:**
+   ```bash
+   go run main.go
+   ```
 
-5. Clone the repository:
+## Gameplay
 
-```sh
-git clone https://github.com/HuXin0817/dots-and-boxes.git
-cd dots-and-boxes
-```
+### Controls
 
-## Running the Game
+- **Space:** Pause/Resume the game.
+- **R:** Restart the game.
+- **1:** Toggle AI for Player 1.
+- **2:** Toggle AI for Player 2.
+- **A:** Toggle auto-restart after a game ends.
+- **Up Arrow:** Increase board size.
+- **Down Arrow:** Decrease board size.
+- **Left Arrow:** Decrease dot distance.
+- **Right Arrow:** Increase dot distance.
+- **Z:** Undo the last move.
+- **W:** Reset board size to 6x6.
+- **Q:** Quit the game.
+- **M:** Toggle music on/off.
 
-To run the game, use the following command:
+### Options
 
-```sh
-go run main.go
-```
+- **AIPlayer1:** Enable/disable AI for Player 1.
+- **AIPlayer2:** Enable/disable AI for Player 2.
+- **PauseState:** Pause/resume the game.
+- **AutoRestart:** Automatically restart the game after it ends.
+- **Music:** Toggle background music and sound effects.
 
-## Controls
+## Code Structure
 
-- **R**: Reset the game
-- **1**: Toggle AI player 1
-- **2**: Toggle AI player 2
-- **+**/**=**/**Up Arrow**: Increase board size
-- **-**/**Down Arrow**: Decrease board size
-- **W**: Set board size to 6x6
-- **Q**: Quit the game
-- **Space**: Pause/Continue the game
-- **L**: Toggle game state logging
+- **main.go:** The main file containing the game logic and UI implementation.
+- **types.go:** Contains type definitions and utility functions.
+- **ai.go:** AI implementation and search algorithms.
+- **utils.go:** Utility functions for gameplay and animations.
+- **theme.go:** Custom theme implementation for the game.
+- **music.go:** Background music and sound effects control.
 
-## Game Structure
+## Customization
 
-The game is implemented using several key structs and types:
+You can customize the game by modifying the constants and functions defined in the main.go and utils.go files. Adjust the board size, dot distance, colors, and other parameters to suit your preferences.
 
-- **Game**: Manages the game state, including the board, player scores, and turn management.
-- **Board**: Represents the game board and manages the edges and boxes.
-- **Dot**: Represents a dot on the board.
-- **Edge**: Represents an edge between two dots.
-- **Box**: Represents a box formed by four edges.
+## License
 
-### AI Player
-
-The AI player selects the best edge to add by evaluating possible moves and using a scoring algorithm to maximize its
-chances of winning.
-
-### Logging
-
-The game state can be logged to a file for debugging and analysis. Logging can be toggled on and off using the **L**
-key.
+This project is licensed under the Mulan PSL v2 License. See the LICENSE file for more details.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue.
+Contributions are welcome! Please feel free to submit a pull request or open an issue if you have any suggestions or find any bugs.
+
+## Contact
+
+For any questions or feedback, you can reach out to the project maintainer at your-email@example.com.
+
+Enjoy the game!
