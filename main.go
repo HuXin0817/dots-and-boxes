@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/HuXin0817/dots-and-boxes/music"
 	"image/color"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -28,16 +30,12 @@ var (
 	Goroutines               = runtime.NumCPU()
 	BoardSize                int
 	BoardSizePower           Dot
-	AIPlayer1                bool
-	AIPlayer2                bool
 	DotDistance              float32
 	DotWidth                 float32
 	DotMargin                float32
 	BoxSize                  float32
 	MainWindowSize           float32
 	GlobalSystemColor        fyne.ThemeVariant
-	PauseState               bool
-	AutoRestart              bool
 	EdgesCount               int
 	Dots                     []Dot
 	Boxes                    []Box
@@ -57,6 +55,11 @@ var (
 	NowTurn                  Turn
 	mu                       sync.Mutex
 	boxCanvasMu              sync.Mutex
+	AIPlayer1                = NewOption("AIPlayer1", false)
+	AIPlayer2                = NewOption("AIPlayer2", false)
+	PauseState               = NewOption("PauseState", false)
+	AutoRestart              = NewOption("AutoRestart", false)
+	MusicOn                  = NewOption("Music", true)
 	TipColor                 = color.NRGBA{R: 255, G: 255, B: 64, A: 50}
 	LightThemeDotCanvasColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	DarkThemeDotCanvasColor  = color.RGBA{R: 202, G: 202, B: 202, A: 255}
@@ -392,7 +395,6 @@ func Restart(boardSize int) {
 		}
 		BoxEdges[b] = edges
 	}
-	PauseState = false
 	DotCanvases = make(map[Dot]*canvas.Circle)
 	EdgesCanvases = make(map[Edge]*canvas.Line)
 	BoxesCanvases = make(map[Box]*canvas.Rectangle)
@@ -415,9 +417,9 @@ func Restart(boardSize int) {
 			mu.Lock()
 			defer mu.Unlock()
 			defer Container.Refresh()
-			if AIPlayer1 && NowTurn == Player1Turn {
+			if AIPlayer1.Value() && NowTurn == Player1Turn {
 				return
-			} else if AIPlayer2 && NowTurn == Player2Turn {
+			} else if AIPlayer2.Value() && NowTurn == Player2Turn {
 				return
 			}
 			AddEdge(e)
@@ -432,7 +434,7 @@ func Restart(boardSize int) {
 		Container.Add(DotCanvases[d])
 	}
 	go func() {
-		if AIPlayer1 {
+		if AIPlayer1.Value() {
 			mu.Lock()
 			AddEdge(GetBestEdge())
 			Container.Refresh()
@@ -440,9 +442,9 @@ func Restart(boardSize int) {
 		}
 		for range SignChan {
 			mu.Lock()
-			if AIPlayer1 && NowTurn == Player1Turn {
+			if AIPlayer1.Value() && NowTurn == Player1Turn {
 				AddEdge(GetBestEdge())
-			} else if AIPlayer2 && NowTurn == Player2Turn {
+			} else if AIPlayer2.Value() && NowTurn == Player2Turn {
 				AddEdge(GetBestEdge())
 			}
 			Container.Refresh()
@@ -504,6 +506,19 @@ func AddEdge(e Edge) {
 	nowStep := len(GlobalBoard)
 	obtainsBoxes := ObtainsBoxes(GlobalBoard, e)
 	score := len(obtainsBoxes)
+	if MusicOn.Value() {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		defer wg.Wait()
+		go func() {
+			defer wg.Done()
+			if score > 0 {
+				music.PlayScoreMusic()
+			} else {
+				music.PlayMoveMusic()
+			}
+		}()
+	}
 	boxCanvasMu.Lock()
 	for _, box := range obtainsBoxes {
 		if NowTurn == Player1Turn {
@@ -532,6 +547,7 @@ func AddEdge(e Edge) {
 			go Tip(nowStep, box)
 		}
 	}
+
 	if nowStep == EdgesCount {
 		if PlayerScore[Player1Turn] > PlayerScore[Player2Turn] {
 			SendMessage("Player1 Win!")
@@ -540,7 +556,7 @@ func AddEdge(e Edge) {
 		} else if PlayerScore[Player1Turn] == PlayerScore[Player2Turn] {
 			SendMessage("Draw!")
 		}
-		if AutoRestart {
+		if AutoRestart.Value() {
 			go func() {
 				time.Sleep(time.Second)
 				RestartWithCall(BoardSize)
@@ -548,12 +564,12 @@ func AddEdge(e Edge) {
 		}
 		return
 	}
-	if AIPlayer1 && NowTurn == Player1Turn {
+	if AIPlayer1.Value() && NowTurn == Player1Turn {
 		select {
 		case SignChan <- struct{}{}:
 		default:
 		}
-	} else if AIPlayer2 && NowTurn == Player2Turn {
+	} else if AIPlayer2.Value() && NowTurn == Player2Turn {
 		select {
 		case SignChan <- struct{}{}:
 		default:
@@ -562,36 +578,34 @@ func AddEdge(e Edge) {
 }
 
 func ChangeAIPlayer1() {
-	if !AIPlayer1 {
-		SendMessage("AIPlayer1 ON")
+	if !AIPlayer1.Value() {
 		if NowTurn == Player1Turn {
 			select {
 			case SignChan <- struct{}{}:
 			default:
 			}
 		}
-	} else {
-		SendMessage("AIPlayer1 OFF")
 	}
-	AIPlayer1 = !AIPlayer1
+	AIPlayer1.Change()
 }
 
 func ChangeAIPlayer2() {
-	if !AIPlayer2 {
-		SendMessage("AIPlayer2 ON")
+	if !AIPlayer2.Value() {
 		if NowTurn == Player2Turn {
 			select {
 			case SignChan <- struct{}{}:
 			default:
 			}
 		}
-	} else {
-		SendMessage("AIPlayer2 OFF")
 	}
-	AIPlayer2 = !AIPlayer2
+	AIPlayer2.Change()
 }
 
 func Recover(MoveRecord []Edge) {
+	if MusicOn.Value() {
+		MusicOn.Change()
+		defer MusicOn.Change()
+	}
 	Restart(BoardSize)
 	for _, e := range MoveRecord {
 		AddEdge(e)
@@ -603,6 +617,28 @@ func SendMessage(format string, a ...any) {
 		Title:   "Dots-And-Boxes",
 		Content: fmt.Sprintf(format, a...),
 	})
+}
+
+type Option struct {
+	name  string
+	value atomic.Bool
+}
+
+func NewOption(name string, value bool) *Option {
+	op := &Option{name: name}
+	op.value.Store(value)
+	return op
+}
+
+func (op *Option) Value() bool { return op.value.Load() }
+
+func (op *Option) Change() {
+	if op.value.Load() {
+		SendMessage(op.name + " ON")
+	} else {
+		SendMessage(op.name + " OFF")
+	}
+	op.value.Store(!op.value.Load())
 }
 
 type GameTheme struct{}
@@ -639,14 +675,12 @@ func (GameTheme) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultThe
 func main() {
 	MainWindow.Canvas().SetOnTypedKey(func(event *fyne.KeyEvent) {
 		if event.Name == fyne.KeySpace {
-			if !PauseState {
-				SendMessage("Game Paused")
+			if !PauseState.Value() {
 				mu.Lock()
 			} else {
-				SendMessage("Game Continues")
 				mu.Unlock()
 			}
-			PauseState = !PauseState
+			PauseState.Change()
 			return
 		}
 		mu.Lock()
@@ -660,12 +694,7 @@ func main() {
 		case fyne.Key2:
 			ChangeAIPlayer2()
 		case fyne.KeyA:
-			if !AutoRestart {
-				SendMessage("AutoRestart ON")
-			} else {
-				SendMessage("AutoRestart OFF")
-			}
-			AutoRestart = !AutoRestart
+			AutoRestart.Change()
 		case fyne.KeyUp:
 			RestartWithCall(BoardSize + 1)
 		case fyne.KeyDown:
@@ -695,6 +724,8 @@ func main() {
 		case fyne.KeyQ:
 			SendMessage("Game Closed")
 			MainWindow.Close()
+		case fyne.KeyM:
+			MusicOn.Change()
 		default:
 			SendMessage("Unidentified Input Key: " + string(event.Name))
 		}
