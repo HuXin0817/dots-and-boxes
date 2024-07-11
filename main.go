@@ -23,49 +23,51 @@ const (
 )
 
 var (
-	App               = app.New()
-	MainWindow        = App.NewWindow("Dots and Boxes")
-	Goroutines        = runtime.NumCPU()
-	BoardSize         int
-	BoardSizePower    Dot
-	AIPlayer1         bool
-	AIPlayer2         bool
-	DotDistance       float32
-	DotWidth          float32
-	DotMargin         float32
-	BoxSize           float32
-	MainWindowSize    float32
-	GlobalSystemColor fyne.ThemeVariant
-	PauseState        bool
-	AutoRestart       bool
-	EdgesCount        int
-	Dots              []Dot
-	Boxes             []Box
-	FullBoard         Board
-	EdgeNearBoxes     map[Edge][]Box
-	BoxEdges          map[Box][]Edge
-	DotCanvases       map[Dot]*canvas.Circle
-	EdgesCanvases     map[Edge]*canvas.Line
-	BoxesCanvases     map[Box]*canvas.Rectangle
-	EdgeButtons       map[Edge]*widget.Button
-	BoxesFilledColor  map[Box]color.Color
-	Container         *fyne.Container
-	SignChan          chan struct{}
-	MoveRecord        []Edge
-	GlobalBoard       Board
-	NowTurn           Turn
-	PlayerScore       map[Turn]int
-	mu                sync.Mutex
-	boxCanvasMu       sync.Mutex
-	TipColor          = color.NRGBA{R: 255, G: 255, B: 30, A: 50}
-	HighLightColor    = map[Turn]color.NRGBA{
-		Player1Turn: {R: 30, G: 30, B: 255, A: 128},
-		Player2Turn: {R: 255, G: 30, B: 30, A: 128},
-	}
-	FilledColor = map[Turn]color.NRGBA{
-		Player1Turn: {R: 30, G: 30, B: 128, A: 128},
-		Player2Turn: {R: 128, G: 30, B: 30, A: 128},
-	}
+	App                      = app.New()
+	MainWindow               = App.NewWindow("Dots and Boxes")
+	Goroutines               = runtime.NumCPU()
+	BoardSize                int
+	BoardSizePower           Dot
+	AIPlayer1                bool
+	AIPlayer2                bool
+	DotDistance              float32
+	DotWidth                 float32
+	DotMargin                float32
+	BoxSize                  float32
+	MainWindowSize           float32
+	GlobalSystemColor        fyne.ThemeVariant
+	PauseState               bool
+	AutoRestart              bool
+	EdgesCount               int
+	Dots                     []Dot
+	Boxes                    []Box
+	FullBoard                Board
+	EdgeNearBoxes            map[Edge][]Box
+	BoxEdges                 map[Box][]Edge
+	DotCanvases              map[Dot]*canvas.Circle
+	EdgesCanvases            map[Edge]*canvas.Line
+	BoxesCanvases            map[Box]*canvas.Rectangle
+	EdgeButtons              map[Edge]*widget.Button
+	BoxesFilledColor         map[Box]color.Color
+	PlayerScore              map[Turn]int
+	Container                *fyne.Container
+	SignChan                 chan struct{}
+	MoveRecord               []Edge
+	GlobalBoard              Board
+	NowTurn                  Turn
+	mu                       sync.Mutex
+	boxCanvasMu              sync.Mutex
+	TipColor                 = color.NRGBA{R: 255, G: 255, B: 64, A: 50}
+	LightThemeDotCanvasColor = color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	DarkThemeDotCanvasColor  = color.RGBA{R: 202, G: 202, B: 202, A: 255}
+	LightThemeColor          = color.RGBA{R: 242, G: 242, B: 242, A: 255}
+	DarkThemeColor           = color.RGBA{R: 43, G: 43, B: 43, A: 255}
+	LightThemeButtonColor    = color.RGBA{R: 217, G: 217, B: 217, A: 255}
+	DarkThemeButtonColor     = color.RGBA{R: 65, G: 65, B: 65, A: 255}
+	Player1HighlightColor    = color.NRGBA{R: 64, G: 64, B: 255, A: 128}
+	Player2HighlightColor    = color.NRGBA{R: 255, G: 64, B: 64, A: 128}
+	Player1FilledColor       = color.NRGBA{R: 64, G: 64, B: 128, A: 128}
+	Player2FilledColor       = color.NRGBA{R: 128, G: 64, B: 64, A: 128}
 )
 
 type Turn int
@@ -192,15 +194,15 @@ func getColorByVariant(lightColor, darkColor color.Color) color.Color {
 }
 
 func GetDotCanvasColor() color.Color {
-	return getColorByVariant(color.RGBA{R: 255, G: 255, B: 255, A: 255}, color.RGBA{R: 202, G: 202, B: 202, A: 255})
+	return getColorByVariant(LightThemeDotCanvasColor, DarkThemeDotCanvasColor)
 }
 
 func GetThemeColor() color.Color {
-	return getColorByVariant(color.RGBA{R: 242, G: 242, B: 242, A: 255}, color.RGBA{R: 43, G: 43, B: 43, A: 255})
+	return getColorByVariant(LightThemeColor, DarkThemeColor)
 }
 
 func GetButtonColor() color.Color {
-	return getColorByVariant(color.RGBA{R: 217, G: 217, B: 217, A: 255}, color.RGBA{R: 65, G: 65, B: 65, A: 255})
+	return getColorByVariant(LightThemeButtonColor, DarkThemeButtonColor)
 }
 
 func NewDotCanvas(d Dot) *canvas.Circle {
@@ -504,11 +506,20 @@ func AddEdge(e Edge) {
 	score := len(obtainsBoxes)
 	boxCanvasMu.Lock()
 	for _, box := range obtainsBoxes {
-		BoxesCanvases[box].FillColor = FilledColor[NowTurn]
-		BoxesFilledColor[box] = FilledColor[NowTurn]
+		if NowTurn == Player1Turn {
+			BoxesCanvases[box].FillColor = Player1FilledColor
+			BoxesFilledColor[box] = Player1FilledColor
+		} else {
+			BoxesCanvases[box].FillColor = Player2FilledColor
+			BoxesFilledColor[box] = Player2FilledColor
+		}
 	}
 	boxCanvasMu.Unlock()
-	EdgesCanvases[e].StrokeColor = HighLightColor[NowTurn]
+	if NowTurn == Player1Turn {
+		EdgesCanvases[e].StrokeColor = Player1HighlightColor
+	} else {
+		EdgesCanvases[e].StrokeColor = Player2HighlightColor
+	}
 	PlayerScore[NowTurn] += score
 	if score == 0 {
 		NowTurn.Change()
