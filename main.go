@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	MaxStepTime       = time.Second / 10
+	MaxStepTime       = time.Second
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
 )
