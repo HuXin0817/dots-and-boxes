@@ -20,7 +20,7 @@ To run the game, you need to have Go installed on your system. Follow the steps 
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/dots-and-boxes.git
+   git clone https://github.com/HuXin0817/dots-and-boxes.git
    cd dots-and-boxes
    ```
 
