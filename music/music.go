@@ -3,11 +3,12 @@ package music
 import (
 	"bytes"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
-	"sync"
-	"time"
 )
 
 type Music struct {

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/HuXin0817/dots-and-boxes/music"
 	"image/color"
 	"runtime"
 	"sync"
@@ -16,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/HuXin0817/dots-and-boxes/music"
 )
 
 const (
