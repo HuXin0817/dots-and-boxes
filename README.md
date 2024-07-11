@@ -1,12 +1,14 @@
 # Dots and Boxes Game
 
-This repository contains the implementation of the Dots and Boxes game using the Fyne library in Go. The game features AI players, scoring mechanisms, and a graphical representation of the board and game elements.
+This repository contains the implementation of the Dots and Boxes game using the Fyne library in Go. The game features
+AI players, scoring mechanisms, and a graphical representation of the board and game elements.
 
 ![demo](demo.gif)
 
 ## Features
 
-- **Graphical User Interface:** The game uses the Fyne library for a user-friendly and cross-platform graphical interface.
+- **Graphical User Interface:** The game uses the Fyne library for a user-friendly and cross-platform graphical
+  interface.
 - **AI Players:** Options to enable AI for Player 1 and Player 2.
 - **Scoring Mechanism:** Real-time score updates for players.
 - **Animation:** Smooth animations for visual feedback.
@@ -71,7 +73,8 @@ To run the game, you need to have Go installed on your system. Follow the steps 
 
 ## Customization
 
-You can customize the game by modifying the constants and functions defined in the main.go and utils.go files. Adjust the board size, dot distance, colors, and other parameters to suit your preferences.
+You can customize the game by modifying the constants and functions defined in the main.go and utils.go files. Adjust
+the board size, dot distance, colors, and other parameters to suit your preferences.
 
 ## License
 
@@ -79,7 +82,8 @@ This project is licensed under the Mulan PSL v2 License. See the LICENSE file fo
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue if you have any suggestions or find any bugs.
+Contributions are welcome! Please feel free to submit a pull request or open an issue if you have any suggestions or
+find any bugs.
 
 ## Contact
 
