@@ -465,7 +465,7 @@ func Tip(nowStep int, box Box) {
 		boxCanvasMu.Lock()
 		defer boxCanvasMu.Unlock()
 		boxesCanvas.FillColor = BoxesFilledColor[box]
-		boxesCanvas.Refresh()
+		Container.Refresh()
 	}()
 	ticker := time.NewTicker(AnimationStepTime)
 	defer ticker.Stop()
@@ -502,7 +502,6 @@ func AddEdge(e Edge) {
 		return
 	}
 	defer func() { MoveRecord = append(MoveRecord, e) }()
-	defer EdgeButtons[e].Hide()
 	nowStep := len(GlobalBoard)
 	obtainsBoxes := ObtainsBoxes(GlobalBoard, e)
 	score := len(obtainsBoxes)
@@ -520,6 +519,7 @@ func AddEdge(e Edge) {
 		}()
 	}
 	boxCanvasMu.Lock()
+	EdgeButtons[e].Hide()
 	for _, box := range obtainsBoxes {
 		if NowTurn == Player1Turn {
 			BoxesCanvases[box].FillColor = Player1FilledColor
