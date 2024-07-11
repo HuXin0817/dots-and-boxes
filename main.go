@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	MaxStepTime       = time.Second
+	MaxStepTime       = time.Second / 10
 	AnimationSteps    = 100
 	AnimationStepTime = time.Second / time.Duration(AnimationSteps)
 )
@@ -547,7 +547,6 @@ func AddEdge(e Edge) {
 			go Tip(nowStep, box)
 		}
 	}
-
 	if nowStep == EdgesCount {
 		if PlayerScore[Player1Turn] > PlayerScore[Player2Turn] {
 			SendMessage("Player1 Win!")
@@ -558,7 +557,7 @@ func AddEdge(e Edge) {
 		}
 		if AutoRestart.Value() {
 			go func() {
-				time.Sleep(time.Second)
+				time.Sleep(2 * time.Second)
 				RestartWithCall(BoardSize)
 			}()
 		}
@@ -575,30 +574,6 @@ func AddEdge(e Edge) {
 		default:
 		}
 	}
-}
-
-func ChangeAIPlayer1() {
-	if !AIPlayer1.Value() {
-		if NowTurn == Player1Turn {
-			select {
-			case SignChan <- struct{}{}:
-			default:
-			}
-		}
-	}
-	AIPlayer1.Change()
-}
-
-func ChangeAIPlayer2() {
-	if !AIPlayer2.Value() {
-		if NowTurn == Player2Turn {
-			select {
-			case SignChan <- struct{}{}:
-			default:
-			}
-		}
-	}
-	AIPlayer2.Change()
 }
 
 func Recover(MoveRecord []Edge) {
@@ -690,11 +665,30 @@ func main() {
 		case fyne.KeyR:
 			RestartWithCall(BoardSize)
 		case fyne.Key1:
-			ChangeAIPlayer1()
+			if !AIPlayer1.Value() {
+				if NowTurn == Player1Turn {
+					select {
+					case SignChan <- struct{}{}:
+					default:
+					}
+				}
+			}
+			AIPlayer1.Change()
 		case fyne.Key2:
-			ChangeAIPlayer2()
+			if !AIPlayer2.Value() {
+				if NowTurn == Player2Turn {
+					select {
+					case SignChan <- struct{}{}:
+					default:
+					}
+				}
+			}
+			AIPlayer2.Change()
 		case fyne.KeyA:
 			AutoRestart.Change()
+			if len(GlobalBoard) == EdgesCount {
+				RestartWithCall(BoardSize)
+			}
 		case fyne.KeyUp:
 			RestartWithCall(BoardSize + 1)
 		case fyne.KeyDown:
