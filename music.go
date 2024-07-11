@@ -1,49 +1,5 @@
 package main
 
-import (
-	"bytes"
-	"fmt"
-	"sync"
-	"time"
-
-	"github.com/faiface/beep"
-	"github.com/faiface/beep/mp3"
-	"github.com/faiface/beep/speaker"
-)
-
-type Music struct {
-	*bytes.Reader
-}
-
-func (rc *Music) Close() error { return nil }
-
-func moveMusic() *Music { return &Music{bytes.NewReader(moveMp3)} }
-
-func scoreMusic() *Music { return &Music{bytes.NewReader(scoreMp3)} }
-
-func PlayMoveMusic() { play(moveMusic()) }
-
-func PlayScoreMusic() { play(scoreMusic()) }
-
-var musicLock sync.Mutex
-
-func play(m *Music) {
-	if MusicOn.Value() {
-		musicLock.Lock()
-		defer musicLock.Unlock()
-		streamer, format, err := mp3.Decode(m)
-		if err != nil {
-			fmt.Println("Error decoding file:", err)
-			return
-		}
-		defer streamer.Close()
-		speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-		done := make(chan bool)
-		speaker.Play(beep.Seq(streamer, beep.Callback(func() { done <- true })))
-		<-done
-	}
-}
-
 var moveMp3 = []byte{
 	0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x54, 0x53,
 	0x53, 0x45, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x03, 0x4c, 0x41, 0x4d,
