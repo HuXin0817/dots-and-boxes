@@ -1,4 +1,4 @@
-package music
+package main
 
 import (
 	"bytes"
@@ -25,21 +25,23 @@ func PlayMoveMusic() { play(moveMusic()) }
 
 func PlayScoreMusic() { play(scoreMusic()) }
 
-var mu sync.Mutex
+var musicLock sync.Mutex
 
 func play(m *Music) {
-	mu.Lock()
-	defer mu.Unlock()
-	streamer, format, err := mp3.Decode(m)
-	if err != nil {
-		fmt.Println("Error decoding file:", err)
-		return
+	if MusicOn.Value() {
+		musicLock.Lock()
+		defer musicLock.Unlock()
+		streamer, format, err := mp3.Decode(m)
+		if err != nil {
+			fmt.Println("Error decoding file:", err)
+			return
+		}
+		defer streamer.Close()
+		speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+		done := make(chan bool)
+		speaker.Play(beep.Seq(streamer, beep.Callback(func() { done <- true })))
+		<-done
 	}
-	defer streamer.Close()
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-	done := make(chan bool)
-	speaker.Play(beep.Seq(streamer, beep.Callback(func() { done <- true })))
-	<-done
 }
 
 var moveMp3 = []byte{

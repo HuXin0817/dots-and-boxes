@@ -1,24 +1,34 @@
-# Dots and Boxes Game
+# Dots-and-Boxes Game
 
-This repository contains the implementation of the Dots and Boxes game using the Fyne library in Go. The game features
-AI players, scoring mechanisms, and a graphical representation of the board and game elements.
+A classic strategy game implemented using Go and Fyne library for the user interface. This project provides an engaging
+and interactive experience with customizable settings and AI opponents.
 
 ![demo](demo.gif)
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Game Rules](#game-rules)
+- [Controls](#controls)
+- [Configuration](#configuration)
+- [Help](#help)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 
-- **Graphical User Interface:** The game uses the Fyne library for a user-friendly and cross-platform graphical
-  interface.
-- **AI Players:** Options to enable AI for Player 1 and Player 2.
-- **Scoring Mechanism:** Real-time score updates for players.
-- **Animation:** Smooth animations for visual feedback.
-- **Music:** Background music and sound effects for moves and scores.
-- **Responsive Board:** The board size and dot distance can be adjusted dynamically.
-- **Game Controls:** Various controls and shortcuts for gameplay.
+- Two-player gameplay.
+- AI opponents for both Player 1 and Player 2.
+- Customizable board size.
+- Undo last move functionality.
+- Pause and resume the game.
+- Background music with on/off toggle.
+- Automatic game restart option.
+- Visual and sound effects for moves and scoring.
 
 ## Installation
-
-To run the game, you need to have Go installed on your system. Follow the steps below to set up the project:
 
 1. **Clone the repository:**
    ```bash
@@ -27,66 +37,72 @@ To run the game, you need to have Go installed on your system. Follow the steps 
    ```
 
 2. **Install dependencies:**
+   Ensure you have Go installed. You can download and install it from [here](https://golang.org/dl/).
+
+   Install the Fyne library:
    ```bash
-   go mod tidy
+   go get fyne.io/fyne/v2
    ```
 
-3. **Run the game:**
+3. **Build and run the application:**
    ```bash
-   go run main.go
+   go build -o dots-and-boxes
+   ./dots-and-boxes
    ```
 
-## Gameplay
+## Usage
 
-### Controls
+Run the application and use the mouse to connect dots and form boxes. The game will automatically switch turns between
+players or AI.
 
-- **Space:** Pause/Resume the game.
-- **R:** Restart the game.
-- **1:** Toggle AI for Player 1.
-- **2:** Toggle AI for Player 2.
-- **A:** Toggle auto-restart after a game ends.
-- **Up Arrow:** Increase board size.
-- **Down Arrow:** Decrease board size.
-- **Left Arrow:** Decrease dot distance.
-- **Right Arrow:** Increase dot distance.
-- **Z:** Undo the last move.
-- **W:** Reset board size to 6x6.
-- **Q:** Quit the game.
-- **M:** Toggle music on/off.
+## Game Rules
 
-### Options
+- The objective is to form more boxes than your opponent.
+- Players take turns to connect two adjacent dots with a horizontal or vertical line.
+- Completing the fourth side of a box scores a point and grants an extra turn.
+- The game ends when all possible lines are drawn, and the player with the most boxes wins.
 
-- **AIPlayer1:** Enable/disable AI for Player 1.
-- **AIPlayer2:** Enable/disable AI for Player 2.
-- **PauseState:** Pause/resume the game.
-- **AutoRestart:** Automatically restart the game after it ends.
-- **Music:** Toggle background music and sound effects.
+## Controls
 
-## Code Structure
+- **Click** on the edges between dots to draw a line.
+- **Menu Options:**
+    - **Game:**
+        - **Restart:** Start a new game with the current board size.
+        - **Undo:** Undo the last move made.
+        - **Pause:** Pause the game.
+        - **Score:** Display the current score.
+        - **Quit:** Exit the game.
+    - **Board:**
+        - **Add Board Size:** Increase the size of the board.
+        - **Reduce Board Size:** Decrease the size of the board.
+        - **Reset Board:** Reset the board to default size and settings.
+    - **Config:**
+        - **AI Player 1:** Toggle AI for Player 1.
+        - **AI Player 2:** Toggle AI for Player 2.
+        - **Auto Restart:** Automatically restart the game after it ends.
+        - **Music:** Toggle background music on/off.
+    - **Help:**
+        - **Help:** Display the help document.
 
-- **main.go:** The main file containing the game logic and UI implementation.
-- **types.go:** Contains type definitions and utility functions.
-- **ai.go:** AI implementation and search algorithms.
-- **utils.go:** Utility functions for gameplay and animations.
-- **theme.go:** Custom theme implementation for the game.
-- **music.go:** Background music and sound effects control.
+## Configuration
 
-## Customization
+- Customize the game settings through the menu options for a personalized experience.
+- Adjust board size and toggle AI players for different levels of challenge.
 
-You can customize the game by modifying the constants and functions defined in the main.go and utils.go files. Adjust
-the board size, dot distance, colors, and other parameters to suit your preferences.
+## Help
 
-## License
-
-This project is licensed under the Mulan PSL v2 License. See the LICENSE file for more details.
+For detailed instructions on gameplay and controls, refer to the in-game help section under the Help menu.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a pull request or open an issue if you have any suggestions or
-find any bugs.
+Contributions are welcome! Please fork the repository and submit a pull request with your improvements.
 
-## Contact
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature-branch`).
+3. Commit your changes (`git commit -am 'Add new feature'`).
+4. Push to the branch (`git push origin feature-branch`).
+5. Create a new pull request.
 
-For any questions or feedback, you can reach out to the project maintainer at your-email@example.com.
+## License
 
-Enjoy the game!
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
