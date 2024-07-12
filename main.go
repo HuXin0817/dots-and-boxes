@@ -85,28 +85,28 @@ const (
 )
 
 type Chess struct {
-	BoardSize                int
-	BoardSizePower           Dot
-	DotWidth                 float32
-	DotMargin                float32
-	BoxSize                  float32
-	MainWindowSize           float32
-	DotDistance              float32
-	AIPlayer1                bool
-	AIPlayer2                bool
-	AutoRestart              bool
-	MusicOn                  bool
-	PauseState               bool
-	EdgesCount               int
-	MoveRecords              []MoveRecord
-	Dots                     []Dot
-	Boxes                    []Box
-	FullBoard                Board
-	EdgeNearBoxes            map[Edge][]Box
-	BoxEdges                 map[Box][]Edge
-	GlobalBoard              Board
-	NowTurn                  Turn
-	AISearchTime             time.Duration
+	BoardSize                int                       `json:"BoardSize"`
+	BoardSizePower           Dot                       `json:"-"`
+	DotWidth                 float32                   `json:"-"`
+	DotMargin                float32                   `json:"-"`
+	BoxSize                  float32                   `json:"-"`
+	MainWindowSize           float32                   `json:"-"`
+	DotDistance              float32                   `json:"DotDistance"`
+	AIPlayer1                bool                      `json:"AIPlayer1"`
+	AIPlayer2                bool                      `json:"AIPlayer2"`
+	AutoRestart              bool                      `json:"AutoRestart"`
+	MusicOn                  bool                      `json:"MusicOn"`
+	PauseState               bool                      `json:"-"`
+	EdgesCount               int                       `json:"-"`
+	AISearchTime             time.Duration             `json:"AISearchTime"`
+	MoveRecords              []MoveRecord              `json:"MoveRecords"`
+	Dots                     []Dot                     `json:"-"`
+	Boxes                    []Box                     `json:"-"`
+	FullBoard                Board                     `json:"-"`
+	EdgeNearBoxes            map[Edge][]Box            `json:"-"`
+	BoxEdges                 map[Box][]Edge            `json:"-"`
+	GlobalBoard              Board                     `json:"-"`
+	NowTurn                  Turn                      `json:"-"`
 	DotCanvases              map[Dot]*canvas.Circle    `json:"-"`
 	EdgesCanvases            map[Edge]*canvas.Line     `json:"-"`
 	BoxesCanvases            map[Box]*canvas.Rectangle `json:"-"`
@@ -130,6 +130,8 @@ type Chess struct {
 	ScoreMenuItem            *fyne.MenuItem            `json:"-"`
 	QuitMenuItem             *fyne.MenuItem            `json:"-"`
 	HelpMenuItem             *fyne.MenuItem            `json:"-"`
+	IncreaseAIMenuItem       *fyne.MenuItem            `json:"-"`
+	ReduceAIMenuItem         *fyne.MenuItem            `json:"-"`
 	GlobalThemeVariant       fyne.ThemeVariant         `json:"-"`
 }
 
@@ -1039,6 +1041,37 @@ func main() {
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key2},
 	}
 
+	chess.IncreaseAIMenuItem = &fyne.MenuItem{
+		Label: "IncreaseAI",
+		Action: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			defer Refresh()
+			chess.ReduceAIMenuItem.Disabled = false
+			chess.AISearchTime = chess.AISearchTime << 1
+			SendMessage("Now AISearchTime: %s", chess.AISearchTime.String())
+		},
+		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key3},
+	}
+
+	chess.ReduceAIMenuItem = &fyne.MenuItem{
+		Label: "ReduceAI",
+		Action: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			defer Refresh()
+			if chess.AISearchTime < time.Millisecond {
+				return
+			}
+			chess.AISearchTime = chess.AISearchTime >> 1
+			if chess.AISearchTime < time.Millisecond {
+				chess.ReduceAIMenuItem.Disabled = true
+			}
+			SendMessage("Now AISearchTime: %s", chess.AISearchTime.String())
+		},
+		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key4},
+	}
+
 	chess.MusicMenuItem = &fyne.MenuItem{
 		Label: GetMessage("Music", !chess.MusicOn),
 		Action: func() {
@@ -1113,6 +1146,8 @@ func main() {
 		fyne.NewMenu("Config",
 			chess.AIPlayer1MenuItem,
 			chess.AIPlayer2MenuItem,
+			chess.IncreaseAIMenuItem,
+			chess.ReduceAIMenuItem,
 			chess.AutoRestartMenuItem,
 			chess.MusicMenuItem,
 		),
