@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"gopkg.in/yaml.v3"
 	"image/color"
 	"image/png"
 	"log"
@@ -239,12 +238,17 @@ func NewBoard(board Board) Board {
 }
 
 type MoveRecord struct {
-	TimeStamp    string
+	TimeStamp    time.Time
 	Step         int
-	Player       string
+	Player       Turn
 	MoveEdge     Edge
 	Player1Score int
 	Player2Score int
+}
+
+func (m *MoveRecord) String() string {
+	return fmt.Sprintf("%s Step: %d, Turn: %s, Edge: %s, Player1Score: %d, Player2Score: %d",
+		m.TimeStamp.Format("2006-01-02 15:04:05"), m.Step, m.Player.ToString(), m.MoveEdge.ToString(), m.Player1Score, m.Player2Score)
 }
 
 func SendMessage(format string, a ...any) {
@@ -491,7 +495,7 @@ func GetPlayerHighlightColor() color.Color {
 	}
 }
 
-func SetDotDistance(d float32) {
+func SetDotDistance(d float32) error {
 	chess.DotDistance = d
 	chess.DotWidth = chess.DotDistance / 5
 	chess.DotMargin = chess.DotDistance / 3 * 2
@@ -499,7 +503,10 @@ func SetDotDistance(d float32) {
 	chess.MainWindowSize = chess.DotDistance*float32(chess.BoardSize) + chess.DotMargin - 5
 	MainWindow.Resize(fyne.NewSize(chess.MainWindowSize, chess.MainWindowSize))
 	moveRecord := append([]MoveRecord{}, chess.MoveRecords...)
-	Recover(moveRecord)
+	if err := Recover(moveRecord); err != nil {
+		return err
+	}
+	return nil
 }
 
 func transPosition(x int) float32 { return chess.DotMargin + float32(x)*chess.DotDistance }
@@ -665,13 +672,20 @@ func NewGame(boardSize int) {
 		chess.EdgeButtons[e] = widget.NewButton("", func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if chess.AIPlayer1 && chess.NowTurn == Player1Turn {
 				return
 			} else if chess.AIPlayer2 && chess.NowTurn == Player2Turn {
 				return
 			}
-			AddEdge(e)
+			if err := AddEdge(e); err != nil {
+				log.Println(err)
+			}
 		})
 		size, pos := getEdgeButtonSizeAndPosition(e)
 		chess.EdgeButtons[e].Resize(size)
@@ -686,8 +700,12 @@ func NewGame(boardSize int) {
 		notifySignChan()
 		for range chess.SignChan {
 			mu.Lock()
-			AddEdge(GetBestEdge())
-			Refresh()
+			if err := AddEdge(GetBestEdge()); err != nil {
+				log.Println(err)
+			}
+			if err := Refresh(); err != nil {
+				log.Println(err)
+			}
 			mu.Unlock()
 		}
 	}()
@@ -731,35 +749,36 @@ func Tip(nowStep int, box Box) {
 }
 
 func StoreMoveRecord() error {
-	RecordFileName := fmt.Sprintf("Dox-and-Boxes %s.json", time.Now().Format(time.DateTime))
+	GameName := fmt.Sprintf("Dox-and-Boxes Game %s", chess.MoveRecords[0].TimeStamp.Format("2006-01-02 15:04:05"))
+	RecordFileName := GameName + ".log"
 	f, err := os.Create(filepath.Join(LogRecordFileDir, RecordFileName))
 	if err != nil {
 		return err
 	}
-	j, err := yaml.Marshal(chess.MoveRecords)
-	if err != nil {
-		return err
+	record := fmt.Sprintf("%s, BoardSize: %d\n", GameName, chess.BoardSize)
+	for _, r := range chess.MoveRecords {
+		record = record + r.String() + "\n"
 	}
-	if _, err := f.Write(j); err != nil {
+	if _, err := f.WriteString(record); err != nil {
 		return err
 	}
 	return nil
 }
 
-func AddEdge(e Edge) {
+func AddEdge(e Edge) error {
 	if chess.BoardSize <= 1 {
-		return
+		return nil
 	}
 	if _, c := chess.GlobalBoard[e]; c {
-		return
+		return nil
 	}
 	if e == 0 {
-		return
+		return nil
 	}
 	chess.MoveRecords = append(chess.MoveRecords, MoveRecord{
-		TimeStamp:    time.Now().Format("2006-01-02 15:04:05"),
+		TimeStamp:    time.Now(),
 		Step:         len(chess.GlobalBoard),
-		Player:       chess.NowTurn.ToString(),
+		Player:       chess.NowTurn,
 		MoveEdge:     e,
 		Player1Score: chess.PlayerScore[Player1Turn],
 		Player2Score: chess.PlayerScore[Player2Turn],
@@ -773,9 +792,13 @@ func AddEdge(e Edge) {
 	go func() {
 		defer wg.Done()
 		if score > 0 {
-			PlayScoreMusic()
+			if err := PlayScoreMusic(); err != nil {
+				log.Println(err)
+			}
 		} else {
-			PlayMoveMusic()
+			if err := PlayMoveMusic(); err != nil {
+				log.Println(err)
+			}
 		}
 	}()
 	defer chess.EdgeButtons[e].Hide()
@@ -800,7 +823,9 @@ func AddEdge(e Edge) {
 		}
 	}
 	if nowStep == chess.EdgesCount {
-		StoreMoveRecord()
+		if err := StoreMoveRecord(); err != nil {
+			return err
+		}
 		if chess.PlayerScore[Player1Turn] > chess.PlayerScore[Player2Turn] {
 			SendMessage("Player1 Win!")
 		} else if chess.PlayerScore[Player1Turn] < chess.PlayerScore[Player2Turn] {
@@ -814,21 +839,24 @@ func AddEdge(e Edge) {
 				RestartWithCall(chess.BoardSize)
 			}()
 		}
-		return
 	}
 	notifySignChan()
 	chess.UndoMenuItem.Disabled = false
+	return nil
 }
 
-func Recover(MoveRecord []MoveRecord) {
+func Recover(MoveRecord []MoveRecord) error {
 	if chess.MusicOn {
 		chess.MusicOn = !chess.MusicOn
 		defer func() { chess.MusicOn = !chess.MusicOn }()
 	}
 	NewGame(chess.BoardSize)
 	for _, r := range MoveRecord {
-		AddEdge(r.MoveEdge)
+		if err := AddEdge(r.MoveEdge); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func GetMessage(head string, value bool) string {
@@ -840,14 +868,19 @@ func GetMessage(head string, value bool) string {
 }
 
 func main() {
-	os.Mkdir(LogRecordFileDir, os.ModePerm)
+	_ = os.Mkdir(LogRecordFileDir, os.ModePerm)
 
 	chess.RestartMenuItem = &fyne.MenuItem{
 		Label: "Restart",
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			RestartWithCall(chess.BoardSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyR},
@@ -857,7 +890,12 @@ func main() {
 		Label:    "Pause",
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeySpace},
 		Action: func() {
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if !chess.PauseState {
 				mu.Lock()
 				chess.PauseMenuItem.Label = "Continue"
@@ -902,14 +940,17 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			RestartWithCall(chess.BoardSize + 1)
 			if !chess.ReduceBoardSizeMenuItem.Disabled {
 				chess.ReduceBoardSizeMenuItem.Disabled = false
 			}
-			if chess.BoardSize != DefaultBoardSize || chess.DotDistance != DefaultBoardSize {
-				chess.ResetBoardMenuItem.Disabled = false
-			}
+			chess.ResetBoardMenuItem.Disabled = chess.BoardSize == DefaultBoardSize && chess.DotDistance == DefaultBoardSize
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyEqual},
 	}
@@ -919,7 +960,12 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if chess.BoardSize <= 1 {
 				return
 			}
@@ -927,9 +973,7 @@ func main() {
 			if chess.BoardSize <= 1 {
 				chess.ResetBoardMenuItem.Disabled = true
 			}
-			if chess.BoardSize != DefaultBoardSize || chess.DotDistance != DefaultBoardSize {
-				chess.ResetBoardMenuItem.Disabled = false
-			}
+			chess.ResetBoardMenuItem.Disabled = chess.BoardSize == DefaultBoardSize && chess.DotDistance == DefaultBoardSize
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyMinus},
 	}
@@ -939,22 +983,28 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			moveRecord := append([]MoveRecord{}, chess.MoveRecords...)
 			if len(moveRecord) > 0 {
 				r := moveRecord[len(moveRecord)-1]
 				SendMessage("Undo Edge " + r.MoveEdge.ToString())
 				moveRecord = moveRecord[:len(moveRecord)-1]
-				Recover(moveRecord)
+				err := Recover(moveRecord)
+				if err != nil {
+					log.Println(err)
+					return
+				}
 			}
 			if len(moveRecord) == 0 {
 				chess.UndoMenuItem.Disabled = true
 			}
-			if chess.BoardSize != DefaultBoardSize || chess.DotDistance != DefaultBoardSize {
-				chess.ResetBoardMenuItem.Disabled = false
-			}
 		},
-		Disabled: true,
+		Disabled: len(chess.GlobalBoard) == 0,
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyZ},
 	}
 
@@ -963,14 +1013,19 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
-			SetDotDistance(chess.DotDistance + 10)
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
+			if err := SetDotDistance(chess.DotDistance + 10); err != nil {
+				log.Println(err)
+			}
 			if chess.ReduceBoardWidthMenuItem.Disabled {
 				chess.ReduceBoardWidthMenuItem.Disabled = true
 			}
-			if chess.BoardSize != DefaultBoardSize || chess.DotDistance != DefaultBoardSize {
-				chess.ResetBoardMenuItem.Disabled = false
-			}
+			chess.ResetBoardMenuItem.Disabled = chess.BoardSize == DefaultBoardSize && chess.DotDistance == DefaultBoardSize
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyUp},
 	}
@@ -980,14 +1035,22 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if chess.DotDistance-10 < MinDotSize {
 				return
 			}
-			SetDotDistance(chess.DotDistance - 10)
+			if err := SetDotDistance(chess.DotDistance - 10); err != nil {
+				log.Println(err)
+			}
 			if chess.DotDistance-10 < MinDotSize {
 				chess.ReduceBoardSizeMenuItem.Disabled = true
 			}
+			chess.ResetBoardMenuItem.Disabled = chess.BoardSize == DefaultBoardSize && chess.DotDistance == DefaultBoardSize
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyDown},
 	}
@@ -997,9 +1060,17 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if chess.DotDistance != DefaultDotDistance {
-				SetDotDistance(DefaultDotDistance)
+				if err := SetDotDistance(DefaultDotDistance); err != nil {
+					log.Println(err)
+					return
+				}
 			}
 			if chess.BoardSize != DefaultBoardSize {
 				RestartWithCall(DefaultBoardSize)
@@ -1007,6 +1078,7 @@ func main() {
 			chess.ResetBoardMenuItem.Disabled = true
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyR},
+		Disabled: chess.BoardSize == DefaultBoardSize && chess.DotDistance == DefaultBoardSize,
 	}
 
 	chess.AIPlayer1MenuItem = &fyne.MenuItem{
@@ -1014,13 +1086,17 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if !chess.AIPlayer1 {
 				notifySignChan()
 			}
-			message := GetMessage("AIPlayer1", chess.AIPlayer1)
-			chess.AIPlayer1MenuItem.Label = message
-			SendMessage(message)
+			chess.AIPlayer1MenuItem.Label = GetMessage("AIPlayer1", chess.AIPlayer1)
+			SendMessage(GetMessage("AIPlayer1", !chess.AIPlayer1))
 			chess.AIPlayer1 = !chess.AIPlayer1
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key1},
@@ -1031,13 +1107,17 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if !chess.AIPlayer2 {
 				notifySignChan()
 			}
-			message := GetMessage("AIPlayer2", chess.AIPlayer2)
-			chess.AIPlayer2MenuItem.Label = message
-			SendMessage(message)
+			chess.AIPlayer2MenuItem.Label = GetMessage("AIPlayer2", chess.AIPlayer2)
+			SendMessage(GetMessage("AIPlayer2", !chess.AIPlayer2))
 			chess.AIPlayer2 = !chess.AIPlayer2
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key2},
@@ -1048,7 +1128,12 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			chess.ReduceAISearchTimeMenuItem.Disabled = false
 			chess.AISearchTime = chess.AISearchTime << 1
 			chess.ResetAISearchTimeMenuItem.Disabled = chess.AISearchTime == time.Second
@@ -1062,7 +1147,12 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if chess.AISearchTime < time.Millisecond {
 				return
 			}
@@ -1081,7 +1171,12 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			chess.AISearchTime = time.Second
 			chess.ResetAISearchTimeMenuItem.Disabled = true
 			SendMessage("Now AISearchTime: %s", chess.AISearchTime.String())
@@ -1094,10 +1189,14 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
-			message := GetMessage("Music", chess.MusicOn)
-			chess.MusicMenuItem.Label = message
-			SendMessage(message)
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
+			chess.MusicMenuItem.Label = GetMessage("Music", chess.MusicOn)
+			SendMessage(GetMessage("Music", !chess.MusicOn))
 			chess.MusicOn = !chess.MusicOn
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyP},
@@ -1108,15 +1207,19 @@ func main() {
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
-			defer Refresh()
-			message := GetMessage("AutoRestart", chess.AutoRestart)
+			defer func() {
+				if err := Refresh(); err != nil {
+					log.Println(err)
+					return
+				}
+			}()
 			if !chess.AutoRestart {
 				if len(chess.GlobalBoard) == chess.EdgesCount {
 					RestartWithCall(chess.BoardSize)
 				}
 			}
-			chess.AutoRestartMenuItem.Label = message
-			SendMessage(message)
+			chess.AutoRestartMenuItem.Label = GetMessage("AutoRestart", chess.AutoRestart)
+			SendMessage(GetMessage("AutoRestart", !chess.AutoRestart))
 			chess.AutoRestart = !chess.AutoRestart
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyA},
@@ -1128,7 +1231,9 @@ func main() {
 			mu.Lock()
 			defer mu.Unlock()
 			SendMessage("Game Closed")
-			Refresh()
+			if err := Refresh(); err != nil {
+				log.Println(err)
+			}
 			os.Exit(0)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyQ},
@@ -1160,29 +1265,33 @@ func main() {
 			fyne.NewMenuItemSeparator(),
 			chess.ResetBoardMenuItem,
 		),
-		fyne.NewMenu("Config",
+		fyne.NewMenu("AI",
 			chess.AIPlayer1MenuItem,
 			chess.AIPlayer2MenuItem,
+			fyne.NewMenuItemSeparator(),
 			chess.IncreaseAISearchTimeMenuItem,
 			chess.ReduceAISearchTimeMenuItem,
 			chess.ResetAISearchTimeMenuItem,
-			fyne.NewMenuItemSeparator(),
+		),
+		fyne.NewMenu("Config",
 			chess.AutoRestartMenuItem,
 			chess.MusicMenuItem,
-		),
-		fyne.NewMenu("Help",
 			chess.HelpMenuItem,
 		),
 	))
 	mu.Lock()
 	MoveRecords := append([]MoveRecord{}, chess.MoveRecords...)
-	SetDotDistance(chess.DotDistance)
+	if err := SetDotDistance(chess.DotDistance); err != nil {
+		log.Println(err)
+	}
 	MainWindow.SetFixedSize(true)
 	App.Settings().SetTheme(GameTheme{})
 	go func() {
 		time.Sleep(300 * time.Millisecond)
 		if len(MoveRecords) > 0 {
-			Recover(MoveRecords)
+			if err := Recover(MoveRecords); err != nil {
+				log.Println(err)
+			}
 		} else {
 			RestartWithCall(chess.BoardSize)
 		}
