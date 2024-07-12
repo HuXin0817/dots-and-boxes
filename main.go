@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"image/color"
 	"image/png"
 	"log"
@@ -85,54 +86,55 @@ const (
 )
 
 type Chess struct {
-	BoardSize                int                       `json:"BoardSize"`
-	BoardSizePower           Dot                       `json:"-"`
-	DotWidth                 float32                   `json:"-"`
-	DotMargin                float32                   `json:"-"`
-	BoxSize                  float32                   `json:"-"`
-	MainWindowSize           float32                   `json:"-"`
-	DotDistance              float32                   `json:"DotDistance"`
-	AIPlayer1                bool                      `json:"AIPlayer1"`
-	AIPlayer2                bool                      `json:"AIPlayer2"`
-	AutoRestart              bool                      `json:"AutoRestart"`
-	MusicOn                  bool                      `json:"MusicOn"`
-	PauseState               bool                      `json:"-"`
-	EdgesCount               int                       `json:"-"`
-	AISearchTime             time.Duration             `json:"AISearchTime"`
-	MoveRecords              []MoveRecord              `json:"MoveRecords"`
-	Dots                     []Dot                     `json:"-"`
-	Boxes                    []Box                     `json:"-"`
-	FullBoard                Board                     `json:"-"`
-	EdgeNearBoxes            map[Edge][]Box            `json:"-"`
-	BoxEdges                 map[Box][]Edge            `json:"-"`
-	GlobalBoard              Board                     `json:"-"`
-	NowTurn                  Turn                      `json:"-"`
-	DotCanvases              map[Dot]*canvas.Circle    `json:"-"`
-	EdgesCanvases            map[Edge]*canvas.Line     `json:"-"`
-	BoxesCanvases            map[Box]*canvas.Rectangle `json:"-"`
-	EdgeButtons              map[Edge]*widget.Button   `json:"-"`
-	BoxesFilledColor         map[Box]color.Color       `json:"-"`
-	PlayerScore              map[Turn]int              `json:"-"`
-	Container                *fyne.Container           `json:"-"`
-	SignChan                 chan struct{}             `json:"-"`
-	RestartMenuItem          *fyne.MenuItem            `json:"-"`
-	MusicMenuItem            *fyne.MenuItem            `json:"-"`
-	AIPlayer1MenuItem        *fyne.MenuItem            `json:"-"`
-	AIPlayer2MenuItem        *fyne.MenuItem            `json:"-"`
-	AutoRestartMenuItem      *fyne.MenuItem            `json:"-"`
-	PauseMenuItem            *fyne.MenuItem            `json:"-"`
-	AddBoardSizeMenuItem     *fyne.MenuItem            `json:"-"`
-	ReduceBoardSizeMenuItem  *fyne.MenuItem            `json:"-"`
-	UndoMenuItem             *fyne.MenuItem            `json:"-"`
-	AddBoardWidthMenuItem    *fyne.MenuItem            `json:"-"`
-	ReduceBoardWidthMenuItem *fyne.MenuItem            `json:"-"`
-	ResetBoardMenuItem       *fyne.MenuItem            `json:"-"`
-	ScoreMenuItem            *fyne.MenuItem            `json:"-"`
-	QuitMenuItem             *fyne.MenuItem            `json:"-"`
-	HelpMenuItem             *fyne.MenuItem            `json:"-"`
-	IncreaseAIMenuItem       *fyne.MenuItem            `json:"-"`
-	ReduceAIMenuItem         *fyne.MenuItem            `json:"-"`
-	GlobalThemeVariant       fyne.ThemeVariant         `json:"-"`
+	BoardSize                    int                       `json:"BoardSize"`
+	BoardSizePower               Dot                       `json:"-"`
+	DotWidth                     float32                   `json:"-"`
+	DotMargin                    float32                   `json:"-"`
+	BoxSize                      float32                   `json:"-"`
+	MainWindowSize               float32                   `json:"-"`
+	DotDistance                  float32                   `json:"DotDistance"`
+	AIPlayer1                    bool                      `json:"AIPlayer1"`
+	AIPlayer2                    bool                      `json:"AIPlayer2"`
+	AutoRestart                  bool                      `json:"AutoRestart"`
+	MusicOn                      bool                      `json:"MusicOn"`
+	PauseState                   bool                      `json:"-"`
+	EdgesCount                   int                       `json:"-"`
+	AISearchTime                 time.Duration             `json:"AISearchTime"`
+	MoveRecords                  []MoveRecord              `json:"MoveRecords"`
+	Dots                         []Dot                     `json:"-"`
+	Boxes                        []Box                     `json:"-"`
+	FullBoard                    Board                     `json:"-"`
+	EdgeNearBoxes                map[Edge][]Box            `json:"-"`
+	BoxEdges                     map[Box][]Edge            `json:"-"`
+	GlobalBoard                  Board                     `json:"-"`
+	NowTurn                      Turn                      `json:"-"`
+	DotCanvases                  map[Dot]*canvas.Circle    `json:"-"`
+	EdgesCanvases                map[Edge]*canvas.Line     `json:"-"`
+	BoxesCanvases                map[Box]*canvas.Rectangle `json:"-"`
+	EdgeButtons                  map[Edge]*widget.Button   `json:"-"`
+	BoxesFilledColor             map[Box]color.Color       `json:"-"`
+	PlayerScore                  map[Turn]int              `json:"-"`
+	Container                    *fyne.Container           `json:"-"`
+	SignChan                     chan struct{}             `json:"-"`
+	RestartMenuItem              *fyne.MenuItem            `json:"-"`
+	MusicMenuItem                *fyne.MenuItem            `json:"-"`
+	AIPlayer1MenuItem            *fyne.MenuItem            `json:"-"`
+	AIPlayer2MenuItem            *fyne.MenuItem            `json:"-"`
+	AutoRestartMenuItem          *fyne.MenuItem            `json:"-"`
+	PauseMenuItem                *fyne.MenuItem            `json:"-"`
+	AddBoardSizeMenuItem         *fyne.MenuItem            `json:"-"`
+	ReduceBoardSizeMenuItem      *fyne.MenuItem            `json:"-"`
+	UndoMenuItem                 *fyne.MenuItem            `json:"-"`
+	AddBoardWidthMenuItem        *fyne.MenuItem            `json:"-"`
+	ReduceBoardWidthMenuItem     *fyne.MenuItem            `json:"-"`
+	ResetBoardMenuItem           *fyne.MenuItem            `json:"-"`
+	ScoreMenuItem                *fyne.MenuItem            `json:"-"`
+	QuitMenuItem                 *fyne.MenuItem            `json:"-"`
+	HelpMenuItem                 *fyne.MenuItem            `json:"-"`
+	IncreaseAISearchTimeMenuItem *fyne.MenuItem            `json:"-"`
+	ReduceAISearchTimeMenuItem   *fyne.MenuItem            `json:"-"`
+	ResetAISearchTimeMenuItem    *fyne.MenuItem            `json:"-"`
+	GlobalThemeVariant           fyne.ThemeVariant         `json:"-"`
 }
 
 var chess = func() (chess Chess) {
@@ -734,7 +736,7 @@ func StoreMoveRecord() error {
 	if err != nil {
 		return err
 	}
-	j, err := sonic.Marshal(chess.MoveRecords)
+	j, err := yaml.Marshal(chess.MoveRecords)
 	if err != nil {
 		return err
 	}
@@ -1041,21 +1043,22 @@ func main() {
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key2},
 	}
 
-	chess.IncreaseAIMenuItem = &fyne.MenuItem{
-		Label: "IncreaseAI",
+	chess.IncreaseAISearchTimeMenuItem = &fyne.MenuItem{
+		Label: "IncreaseAISearchTime",
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
 			defer Refresh()
-			chess.ReduceAIMenuItem.Disabled = false
+			chess.ReduceAISearchTimeMenuItem.Disabled = false
 			chess.AISearchTime = chess.AISearchTime << 1
+			chess.ResetAISearchTimeMenuItem.Disabled = chess.AISearchTime == time.Second
 			SendMessage("Now AISearchTime: %s", chess.AISearchTime.String())
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key3},
 	}
 
-	chess.ReduceAIMenuItem = &fyne.MenuItem{
-		Label: "ReduceAI",
+	chess.ReduceAISearchTimeMenuItem = &fyne.MenuItem{
+		Label: "ReduceAISearchTime",
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
@@ -1065,11 +1068,25 @@ func main() {
 			}
 			chess.AISearchTime = chess.AISearchTime >> 1
 			if chess.AISearchTime < time.Millisecond {
-				chess.ReduceAIMenuItem.Disabled = true
+				chess.ReduceAISearchTimeMenuItem.Disabled = true
 			}
+			chess.ResetAISearchTimeMenuItem.Disabled = chess.AISearchTime == time.Second
 			SendMessage("Now AISearchTime: %s", chess.AISearchTime.String())
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key4},
+	}
+
+	chess.ResetAISearchTimeMenuItem = &fyne.MenuItem{
+		Label: "ResetAISearchTime",
+		Action: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			defer Refresh()
+			chess.AISearchTime = time.Second
+			chess.ResetAISearchTimeMenuItem.Disabled = true
+			SendMessage("Now AISearchTime: %s", chess.AISearchTime.String())
+		},
+		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key5},
 	}
 
 	chess.MusicMenuItem = &fyne.MenuItem{
@@ -1146,8 +1163,10 @@ func main() {
 		fyne.NewMenu("Config",
 			chess.AIPlayer1MenuItem,
 			chess.AIPlayer2MenuItem,
-			chess.IncreaseAIMenuItem,
-			chess.ReduceAIMenuItem,
+			chess.IncreaseAISearchTimeMenuItem,
+			chess.ReduceAISearchTimeMenuItem,
+			chess.ResetAISearchTimeMenuItem,
+			fyne.NewMenuItemSeparator(),
 			chess.AutoRestartMenuItem,
 			chess.MusicMenuItem,
 		),
