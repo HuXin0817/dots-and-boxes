@@ -403,6 +403,7 @@ func play(m *Music) (err error) {
 		defer func(streamer beep.StreamSeekCloser) {
 			if err := streamer.Close(); err != nil {
 				log.Println(err)
+				return
 			}
 		}(streamer)
 		if err := speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10)); err != nil {
@@ -685,6 +686,7 @@ func NewGame(boardSize int) {
 			}
 			if err := AddEdge(e); err != nil {
 				log.Println(err)
+				return
 			}
 		})
 		size, pos := getEdgeButtonSizeAndPosition(e)
@@ -702,9 +704,11 @@ func NewGame(boardSize int) {
 			mu.Lock()
 			if err := AddEdge(GetBestEdge()); err != nil {
 				log.Println(err)
+				return
 			}
 			if err := Refresh(); err != nil {
 				log.Println(err)
+				return
 			}
 			mu.Unlock()
 		}
@@ -794,10 +798,12 @@ func AddEdge(e Edge) error {
 		if score > 0 {
 			if err := PlayScoreMusic(); err != nil {
 				log.Println(err)
+				return
 			}
 		} else {
 			if err := PlayMoveMusic(); err != nil {
 				log.Println(err)
+				return
 			}
 		}
 	}()
@@ -1021,6 +1027,7 @@ func main() {
 			}()
 			if err := SetDotDistance(chess.DotDistance + 10); err != nil {
 				log.Println(err)
+				return
 			}
 			if chess.ReduceBoardWidthMenuItem.Disabled {
 				chess.ReduceBoardWidthMenuItem.Disabled = true
@@ -1046,6 +1053,7 @@ func main() {
 			}
 			if err := SetDotDistance(chess.DotDistance - 10); err != nil {
 				log.Println(err)
+				return
 			}
 			if chess.DotDistance-10 < MinDotSize {
 				chess.ReduceBoardSizeMenuItem.Disabled = true
@@ -1233,6 +1241,7 @@ func main() {
 			SendMessage("Game Closed")
 			if err := Refresh(); err != nil {
 				log.Println(err)
+				return
 			}
 			os.Exit(0)
 		},
@@ -1283,6 +1292,7 @@ func main() {
 	MoveRecords := append([]MoveRecord{}, chess.MoveRecords...)
 	if err := SetDotDistance(chess.DotDistance); err != nil {
 		log.Println(err)
+		return
 	}
 	MainWindow.SetFixedSize(true)
 	App.Settings().SetTheme(GameTheme{})
@@ -1291,6 +1301,7 @@ func main() {
 		if len(MoveRecords) > 0 {
 			if err := Recover(MoveRecords); err != nil {
 				log.Println(err)
+				return
 			}
 		} else {
 			RestartWithCall(chess.BoardSize)
