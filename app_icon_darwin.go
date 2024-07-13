@@ -26,25 +26,11 @@ void initializeNSApplication() {
 */
 import "C"
 
-import (
-	"log"
-	"runtime"
-	"time"
-	"unsafe"
-)
+var CImagePath = C.CString(ImagePath)
 
 func init() {
-	if runtime.GOOS != "darwin" {
-		log.Println("This application is only supported on macOS.")
-		return
-	}
 	C.initializeNSApplication()
-	go func() {
-		ticker := time.NewTicker(100 * time.Millisecond)
-		for range ticker.C {
-			path := C.CString(ImagePath)
-			C.setApplicationIconImage(path)
-			C.free(unsafe.Pointer(path))
-		}
-	}()
+	RefreshMacOSIcon = func() {
+		C.setApplicationIconImage(CImagePath)
+	}
 }
