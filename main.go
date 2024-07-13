@@ -760,7 +760,7 @@ func Tip(nowStep int, box Box) {
 	}
 }
 
-func StoreMoveRecord() {
+func StoreMoveRecord(WinMessage string) {
 	GameName := fmt.Sprintf("Dox-and-Boxes Game %s", chess.MoveRecords[0].TimeStamp.Format("2006-01-02 15:04:05"))
 	f, err := os.Create(GameName + ".log")
 	if err != nil {
@@ -771,6 +771,7 @@ func StoreMoveRecord() {
 	for _, r := range chess.MoveRecords {
 		record = record + r.String() + "\n"
 	}
+	record += WinMessage
 	if _, err := f.WriteString(record); err != nil {
 		SendMessage(err.Error())
 		return
@@ -835,15 +836,17 @@ func AddEdge(e Edge) {
 		}
 	}
 	if nowStep == chess.EdgesCount {
-		StoreMoveRecord()
+		var WinMessage string
 		scoreLock.Lock()
 		if chess.PlayerScore[Player1Turn] > chess.PlayerScore[Player2Turn] {
-			SendMessage("Player1 Win!")
+			WinMessage = "Player1 Win!"
 		} else if chess.PlayerScore[Player1Turn] < chess.PlayerScore[Player2Turn] {
-			SendMessage("Player2 Win!")
+			WinMessage = "Player2 Win!"
 		} else if chess.PlayerScore[Player1Turn] == chess.PlayerScore[Player2Turn] {
-			SendMessage("Draw!")
+			WinMessage = "Draw!"
 		}
+		SendMessage(WinMessage)
+		StoreMoveRecord(WinMessage)
 		scoreLock.Unlock()
 		if chess.AutoRestart {
 			go func() {
