@@ -26,8 +26,7 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-const HelpDoc = `
-Dots and Boxes Game Instructions
+const HelpDoc = `Dots and Boxes Game Instructions
 
 Objective:
 - The goal of the game is to form more boxes than your opponent.
@@ -47,7 +46,6 @@ Menu Options:
 - Game:
   - Restart: Start a new game with the current board size.
   - Undo: Undo the last move made.
-  - Pause: Pause the game.
   - Score: Display the current score.
   - Quit: Exit the game.
 
@@ -81,6 +79,7 @@ const (
 	DefaultBoardSize   = 6
 	DefaultStepTime    = time.Second
 	MinDotSize         = 60
+	MinBoardSize       = 1
 	LogRecordFileDir   = "log"
 )
 
@@ -96,7 +95,6 @@ type Chess struct {
 	AIPlayer2                    bool                      `json:"AIPlayer2"`
 	AutoRestart                  bool                      `json:"AutoRestart"`
 	MusicOn                      bool                      `json:"MusicOn"`
-	PauseState                   bool                      `json:"-"`
 	EdgesCount                   int                       `json:"-"`
 	AISearchTime                 time.Duration             `json:"AISearchTime"`
 	MoveRecords                  []MoveRecord              `json:"MoveRecords"`
@@ -120,7 +118,6 @@ type Chess struct {
 	AIPlayer1MenuItem            *fyne.MenuItem            `json:"-"`
 	AIPlayer2MenuItem            *fyne.MenuItem            `json:"-"`
 	AutoRestartMenuItem          *fyne.MenuItem            `json:"-"`
-	PauseMenuItem                *fyne.MenuItem            `json:"-"`
 	AddBoardSizeMenuItem         *fyne.MenuItem            `json:"-"`
 	ReduceBoardSizeMenuItem      *fyne.MenuItem            `json:"-"`
 	UndoMenuItem                 *fyne.MenuItem            `json:"-"`
@@ -134,43 +131,38 @@ type Chess struct {
 	ReduceAISearchTimeMenuItem   *fyne.MenuItem            `json:"-"`
 	ResetAISearchTimeMenuItem    *fyne.MenuItem            `json:"-"`
 	GlobalThemeVariant           fyne.ThemeVariant         `json:"-"`
+	mu                           sync.Mutex
+	boxesCanvasLock              sync.Mutex
+	musicLock                    sync.Mutex
+	scoreLock                    sync.Mutex
 }
 
-var chess = func() (chess Chess) {
+func NewChess() (chess *Chess) {
+	chess = new(Chess)
 	if _, err := os.Stat(ConfigFilePath); err == nil {
 		if b, err := os.ReadFile(ConfigFilePath); err == nil {
-			if err := sonic.Unmarshal(b, &chess); err == nil {
+			if err := sonic.Unmarshal(b, chess); err == nil {
 				return chess
 			}
 		}
 	}
-	return Chess{
+	return &Chess{
 		BoardSize:    DefaultBoardSize,
 		DotDistance:  DefaultDotDistance,
 		MusicOn:      true,
 		AISearchTime: DefaultStepTime,
 	}
-}()
+}
+
+var chess = NewChess()
 
 var (
-	Goroutines               = runtime.NumCPU()
-	App                      = app.New()
-	MainWindow               = App.NewWindow("Dots and Boxes")
-	TmpMenuItemDisabledState = make(map[string]bool)
-	UnDisableMenuItemLabel   = map[string]struct{}{
-		"Continue":  {},
-		"Quit":      {},
-		"Help":      {},
-		"Music ON":  {},
-		"Music OFF": {},
-	}
+	Goroutines = runtime.NumCPU()
+	App        = app.New()
+	MainWindow = App.NewWindow("Dots and Boxes")
 )
 
 var (
-	mu              sync.Mutex
-	boxesCanvasLock sync.Mutex
-	musicLock       sync.Mutex
-
 	LightThemeDotCanvasColor = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
 	DarkThemeDotCanvasColor  = color.NRGBA{R: 202, G: 202, B: 202, A: 255}
 	LightThemeColor          = color.NRGBA{R: 242, G: 242, B: 242, A: 255}
@@ -394,8 +386,8 @@ func PlayScoreMusic() error { return play(scoreMusic()) }
 
 func play(m *Music) (err error) {
 	if chess.MusicOn {
-		musicLock.Lock()
-		defer musicLock.Unlock()
+		chess.musicLock.Lock()
+		defer chess.musicLock.Unlock()
 		streamer, format, err := mp3.Decode(m)
 		if err != nil {
 			return err
@@ -661,7 +653,9 @@ func NewGame(boardSize int) {
 	chess.SignChan = make(chan struct{}, 1)
 	chess.MoveRecords = []MoveRecord{}
 	chess.NowTurn = Player1Turn
+	chess.scoreLock.Lock()
 	chess.PlayerScore = map[Turn]int{Player1Turn: 0, Player2Turn: 0}
+	chess.scoreLock.Unlock()
 	chess.GlobalBoard = make(Board)
 	for _, b := range chess.Boxes {
 		chess.BoxesCanvases[b] = NewBoxCanvas(b)
@@ -671,8 +665,8 @@ func NewGame(boardSize int) {
 		chess.EdgesCanvases[e] = NewEdgeCanvas(e)
 		chess.Container.Add(chess.EdgesCanvases[e])
 		chess.EdgeButtons[e] = widget.NewButton("", func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -701,7 +695,7 @@ func NewGame(boardSize int) {
 	go func() {
 		notifySignChan()
 		for range chess.SignChan {
-			mu.Lock()
+			chess.mu.Lock()
 			if err := AddEdge(GetBestEdge()); err != nil {
 				log.Println(err)
 				return
@@ -710,7 +704,7 @@ func NewGame(boardSize int) {
 				log.Println(err)
 				return
 			}
-			mu.Unlock()
+			chess.mu.Unlock()
 		}
 	}()
 	MainWindow.SetContent(chess.Container)
@@ -724,8 +718,8 @@ func RestartWithCall(size int) {
 func Tip(nowStep int, box Box) {
 	boxesCanvas := chess.BoxesCanvases[box]
 	defer func() {
-		boxesCanvasLock.Lock()
-		defer boxesCanvasLock.Unlock()
+		chess.boxesCanvasLock.Lock()
+		defer chess.boxesCanvasLock.Unlock()
 		boxesCanvas.FillColor = chess.BoxesFilledColor[box]
 	}()
 	ticker := time.NewTicker(AnimationStepTime)
@@ -779,6 +773,7 @@ func AddEdge(e Edge) error {
 	if e == 0 {
 		return nil
 	}
+	chess.scoreLock.Lock()
 	chess.MoveRecords = append(chess.MoveRecords, MoveRecord{
 		TimeStamp:    time.Now(),
 		Step:         len(chess.GlobalBoard),
@@ -787,6 +782,7 @@ func AddEdge(e Edge) error {
 		Player1Score: chess.PlayerScore[Player1Turn],
 		Player2Score: chess.PlayerScore[Player2Turn],
 	})
+	chess.scoreLock.Unlock()
 	nowStep := len(chess.GlobalBoard)
 	obtainsBoxes := ObtainsBoxes(chess.GlobalBoard, e)
 	score := len(obtainsBoxes)
@@ -808,15 +804,17 @@ func AddEdge(e Edge) error {
 		}
 	}()
 	defer chess.EdgeButtons[e].Hide()
-	boxesCanvasLock.Lock()
+	chess.boxesCanvasLock.Lock()
 	for _, box := range obtainsBoxes {
 		playerFilledColor := GetPlayerFilledColor()
 		chess.BoxesCanvases[box].FillColor = playerFilledColor
 		chess.BoxesFilledColor[box] = playerFilledColor
 	}
-	boxesCanvasLock.Unlock()
+	chess.boxesCanvasLock.Unlock()
 	chess.EdgesCanvases[e].StrokeColor = GetPlayerHighlightColor()
+	chess.scoreLock.Lock()
 	chess.PlayerScore[chess.NowTurn] += score
+	chess.scoreLock.Unlock()
 	if score == 0 {
 		chess.NowTurn.Change()
 	}
@@ -832,6 +830,7 @@ func AddEdge(e Edge) error {
 		if err := StoreMoveRecord(); err != nil {
 			return err
 		}
+		chess.scoreLock.Lock()
 		if chess.PlayerScore[Player1Turn] > chess.PlayerScore[Player2Turn] {
 			SendMessage("Player1 Win!")
 		} else if chess.PlayerScore[Player1Turn] < chess.PlayerScore[Player2Turn] {
@@ -839,6 +838,7 @@ func AddEdge(e Edge) error {
 		} else if chess.PlayerScore[Player1Turn] == chess.PlayerScore[Player2Turn] {
 			SendMessage("Draw!")
 		}
+		chess.scoreLock.Unlock()
 		if chess.AutoRestart {
 			go func() {
 				time.Sleep(2 * time.Second)
@@ -873,14 +873,67 @@ func GetMessage(head string, value bool) string {
 	}
 }
 
+func FlushMenu() {
+	chess.RestartMenuItem.Disabled = len(chess.GlobalBoard) == 0
+	chess.RestartMenuItem.Label = "Restart"
+
+	chess.MusicMenuItem.Disabled = false
+	chess.MusicMenuItem.Label = GetMessage("Music", !chess.MusicOn)
+
+	chess.AIPlayer1MenuItem.Disabled = false
+	chess.AIPlayer1MenuItem.Label = GetMessage("AIPlayer1", !chess.AIPlayer1)
+
+	chess.AIPlayer2MenuItem.Disabled = false
+	chess.AIPlayer2MenuItem.Label = GetMessage("AIPlayer2", !chess.AIPlayer2)
+
+	chess.AutoRestartMenuItem.Disabled = false
+	chess.AutoRestartMenuItem.Label = GetMessage("AutoRestart", !chess.AutoRestart)
+
+	chess.AddBoardWidthMenuItem.Disabled = false
+	chess.AddBoardWidthMenuItem.Label = "Add BoardWidth"
+
+	chess.ReduceBoardWidthMenuItem.Disabled = chess.DotDistance <= MinDotSize
+	chess.ReduceBoardWidthMenuItem.Label = "Reduce BoardWidth"
+
+	chess.AddBoardSizeMenuItem.Disabled = false
+	chess.AddBoardSizeMenuItem.Label = "Add BoardSize"
+
+	chess.ReduceBoardSizeMenuItem.Disabled = chess.BoardSize <= MinDotSize
+	chess.ReduceBoardSizeMenuItem.Label = "Reduce BoardSize"
+
+	chess.ResetBoardMenuItem.Disabled = chess.BoardSize == DefaultBoardSize && chess.DotDistance == DefaultBoardSize
+	chess.ResetBoardMenuItem.Label = "Reset Board"
+
+	chess.QuitMenuItem.Disabled = false
+	chess.QuitMenuItem.Label = "Quit"
+
+	chess.UndoMenuItem.Disabled = len(chess.GlobalBoard) == 0
+	chess.UndoMenuItem.Label = "Undo"
+
+	chess.ScoreMenuItem.Disabled = false
+	chess.ScoreMenuItem.Label = "Score"
+
+	chess.IncreaseAISearchTimeMenuItem.Disabled = false
+	chess.IncreaseAISearchTimeMenuItem.Label = "Increase AI Search Time"
+
+	chess.ReduceAISearchTimeMenuItem.Disabled = chess.AISearchTime < time.Millisecond
+	chess.ReduceAISearchTimeMenuItem.Label = "Reduce AI Search Time"
+
+	chess.ResetAISearchTimeMenuItem.Disabled = chess.AISearchTime == DefaultStepTime
+	chess.ResetAISearchTimeMenuItem.Label = "Reset AI Search Time"
+
+	chess.HelpMenuItem.Disabled = false
+	chess.HelpMenuItem.Label = "Help"
+}
+
 func main() {
 	_ = os.Mkdir(LogRecordFileDir, os.ModePerm)
 
 	chess.RestartMenuItem = &fyne.MenuItem{
 		Label: "Restart",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -892,51 +945,12 @@ func main() {
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyR},
 	}
 
-	chess.PauseMenuItem = &fyne.MenuItem{
-		Label:    "Pause",
-		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeySpace},
-		Action: func() {
-			defer func() {
-				if err := Refresh(); err != nil {
-					log.Println(err)
-					return
-				}
-			}()
-			if !chess.PauseState {
-				mu.Lock()
-				chess.PauseMenuItem.Label = "Continue"
-				SendMessage("Game Paused")
-				TmpMenuItemDisabledState = make(map[string]bool)
-				for _, menu := range MainWindow.MainMenu().Items {
-					for _, m := range menu.Items {
-						if _, c := UnDisableMenuItemLabel[m.Label]; !c {
-							TmpMenuItemDisabledState[m.Label] = m.Disabled
-							m.Disabled = true
-						}
-					}
-				}
-			} else {
-				for _, menu := range MainWindow.MainMenu().Items {
-					for _, m := range menu.Items {
-						if _, c := UnDisableMenuItemLabel[m.Label]; !c {
-							m.Disabled = TmpMenuItemDisabledState[m.Label]
-						}
-					}
-				}
-				mu.Unlock()
-				chess.PauseMenuItem.Label = "Pause"
-				SendMessage("Game Continue")
-			}
-			chess.PauseState = !chess.PauseState
-		},
-	}
-
 	chess.ScoreMenuItem = &fyne.MenuItem{
 		Label: "Score",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.scoreLock.Lock()
 			SendMessage("Player1 Score: %d\nPlayer2 Score: %d\n", chess.PlayerScore[Player1Turn], chess.PlayerScore[Player2Turn])
+			chess.scoreLock.Unlock()
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyS},
 	}
@@ -944,8 +958,8 @@ func main() {
 	chess.AddBoardSizeMenuItem = &fyne.MenuItem{
 		Label: "AddBoardSize",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -964,8 +978,8 @@ func main() {
 	chess.ReduceBoardSizeMenuItem = &fyne.MenuItem{
 		Label: "ReduceBoardSize",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -987,8 +1001,8 @@ func main() {
 	chess.UndoMenuItem = &fyne.MenuItem{
 		Label: "Undo",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1017,8 +1031,8 @@ func main() {
 	chess.AddBoardWidthMenuItem = &fyne.MenuItem{
 		Label: "AddBoardWidth",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1040,8 +1054,8 @@ func main() {
 	chess.ReduceBoardWidthMenuItem = &fyne.MenuItem{
 		Label: "ReduceBoardWidth",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1066,8 +1080,8 @@ func main() {
 	chess.ResetBoardMenuItem = &fyne.MenuItem{
 		Label: "ResetBoard",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1092,8 +1106,8 @@ func main() {
 	chess.AIPlayer1MenuItem = &fyne.MenuItem{
 		Label: GetMessage("AIPlayer1", !chess.AIPlayer1),
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1113,8 +1127,8 @@ func main() {
 	chess.AIPlayer2MenuItem = &fyne.MenuItem{
 		Label: GetMessage("AIPlayer2", !chess.AIPlayer2),
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1134,8 +1148,8 @@ func main() {
 	chess.IncreaseAISearchTimeMenuItem = &fyne.MenuItem{
 		Label: "IncreaseAISearchTime",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1153,8 +1167,8 @@ func main() {
 	chess.ReduceAISearchTimeMenuItem = &fyne.MenuItem{
 		Label: "ReduceAISearchTime",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1177,8 +1191,8 @@ func main() {
 	chess.ResetAISearchTimeMenuItem = &fyne.MenuItem{
 		Label: "ResetAISearchTime",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1195,8 +1209,8 @@ func main() {
 	chess.MusicMenuItem = &fyne.MenuItem{
 		Label: GetMessage("Music", !chess.MusicOn),
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1213,8 +1227,8 @@ func main() {
 	chess.AutoRestartMenuItem = &fyne.MenuItem{
 		Label: GetMessage("AutoRestart", !chess.AutoRestart),
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			defer func() {
 				if err := Refresh(); err != nil {
 					log.Println(err)
@@ -1236,8 +1250,8 @@ func main() {
 	chess.QuitMenuItem = &fyne.MenuItem{
 		Label: "Quit",
 		Action: func() {
-			mu.Lock()
-			defer mu.Unlock()
+			chess.mu.Lock()
+			defer chess.mu.Unlock()
 			SendMessage("Game Closed")
 			if err := Refresh(); err != nil {
 				log.Println(err)
@@ -1257,38 +1271,43 @@ func main() {
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyH},
 	}
 
-	MainWindow.SetMainMenu(fyne.NewMainMenu(
-		fyne.NewMenu("Game",
-			chess.RestartMenuItem,
-			chess.UndoMenuItem,
-			chess.PauseMenuItem,
-			chess.ScoreMenuItem,
-			fyne.NewMenuItemSeparator(),
-			chess.QuitMenuItem,
+	MainWindow.SetMainMenu(
+		fyne.NewMainMenu(
+			fyne.NewMenu(
+				"Game",
+				chess.RestartMenuItem,
+				chess.UndoMenuItem,
+				chess.ScoreMenuItem,
+				fyne.NewMenuItemSeparator(),
+				chess.QuitMenuItem,
+			),
+			fyne.NewMenu(
+				"Board",
+				chess.AddBoardWidthMenuItem,
+				chess.ReduceBoardWidthMenuItem,
+				chess.AddBoardSizeMenuItem,
+				chess.ReduceBoardSizeMenuItem,
+				fyne.NewMenuItemSeparator(),
+				chess.ResetBoardMenuItem,
+			),
+			fyne.NewMenu(
+				"AI",
+				chess.AIPlayer1MenuItem,
+				chess.AIPlayer2MenuItem,
+				fyne.NewMenuItemSeparator(),
+				chess.IncreaseAISearchTimeMenuItem,
+				chess.ReduceAISearchTimeMenuItem,
+				chess.ResetAISearchTimeMenuItem,
+			),
+			fyne.NewMenu(
+				"Config",
+				chess.AutoRestartMenuItem,
+				chess.MusicMenuItem,
+				chess.HelpMenuItem,
+			),
 		),
-		fyne.NewMenu("Board",
-			chess.AddBoardWidthMenuItem,
-			chess.ReduceBoardWidthMenuItem,
-			chess.AddBoardSizeMenuItem,
-			chess.ReduceBoardSizeMenuItem,
-			fyne.NewMenuItemSeparator(),
-			chess.ResetBoardMenuItem,
-		),
-		fyne.NewMenu("AI",
-			chess.AIPlayer1MenuItem,
-			chess.AIPlayer2MenuItem,
-			fyne.NewMenuItemSeparator(),
-			chess.IncreaseAISearchTimeMenuItem,
-			chess.ReduceAISearchTimeMenuItem,
-			chess.ResetAISearchTimeMenuItem,
-		),
-		fyne.NewMenu("Config",
-			chess.AutoRestartMenuItem,
-			chess.MusicMenuItem,
-			chess.HelpMenuItem,
-		),
-	))
-	mu.Lock()
+	)
+	chess.mu.Lock()
 	MoveRecords := append([]MoveRecord{}, chess.MoveRecords...)
 	if err := SetDotDistance(chess.DotDistance); err != nil {
 		log.Println(err)
@@ -1297,6 +1316,8 @@ func main() {
 	MainWindow.SetFixedSize(true)
 	App.Settings().SetTheme(GameTheme{})
 	go func() {
+		defer chess.mu.Unlock()
+		defer chess.Container.Refresh()
 		time.Sleep(300 * time.Millisecond)
 		if len(MoveRecords) > 0 {
 			if err := Recover(MoveRecords); err != nil {
@@ -1306,8 +1327,6 @@ func main() {
 		} else {
 			RestartWithCall(chess.BoardSize)
 		}
-		chess.Container.Refresh()
-		mu.Unlock()
 	}()
 	MainWindow.ShowAndRun()
 }
