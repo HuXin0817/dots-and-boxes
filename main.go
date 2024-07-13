@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	ginpprof "github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 	"image/color"
 	"image/png"
 	"log"
@@ -27,8 +29,6 @@ import (
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
-	ginpprof "github.com/gin-contrib/pprof"
-	"github.com/gin-gonic/gin"
 )
 
 const HelpDoc = `Dots and Boxes Game Help Document
@@ -147,6 +147,7 @@ var (
 	chess            = NewChessMeta()
 	SignChan         = make(chan struct{}, 1)
 	RefreshMacOSIcon func()
+	pprofInit        bool
 
 	LightThemeDotCanvasColor = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
 	DarkThemeDotCanvasColor  = color.NRGBA{R: 202, G: 202, B: 202, A: 255}
@@ -950,14 +951,6 @@ func FlushMenu() {
 
 func main() {
 	go func() {
-		r := gin.Default()
-		ginpprof.Register(r)
-		if err := r.Run(":6060"); err != nil {
-			SendMessage(err.Error())
-		}
-	}()
-
-	go func() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGQUIT, syscall.SIGABRT, syscall.SIGALRM, syscall.SIGHUP, syscall.SIGPIPE)
 		sig := <-sigChan
@@ -1191,6 +1184,16 @@ func main() {
 
 	SavePprofMenuItem = &fyne.MenuItem{
 		Action: func() {
+			if !pprofInit {
+				pprofInit = true
+				go func() {
+					r := gin.Default()
+					ginpprof.Register(r)
+					if err := r.Run(":6060"); err != nil {
+						SendMessage(err.Error())
+					}
+				}()
+			}
 			AnalyzeTime := 10 * time.Second
 			SendMessage("Start to generate pprof")
 			pprofFileName := fmt.Sprintf("%s-%s.pprof", time.Now().Format("2006-01-02 15:04:05"), time.Now().Add(AnalyzeTime).Format("2006-01-02 15:04:05"))
@@ -1280,4 +1283,5 @@ func main() {
 		mu.Unlock()
 	}()
 	MainWindow.ShowAndRun()
+	Refresh()
 }
