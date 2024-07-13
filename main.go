@@ -31,48 +31,60 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const HelpDoc = `Dots and Boxes Game Instructions
+const HelpDoc = `Dots and Boxes Game Help Document
 
-Objective:
-- The goal of the game is to form more boxes than your opponent.
+Game Introduction:
+Dots and Boxes is a simple yet challenging board game. Players take turns drawing lines between dots on the board, forming edges. When a player's drawing completes a box, the player scores a point and continues to the next move. The game ends when all boxes are completed, and the player with the highest score wins.
 
-Gameplay:
-- The game is played on a grid of dots.
-- Two players take turns connecting two adjacent dots with a horizontal or vertical line.
-- If a player completes the fourth side of a box, they score a point and take another turn.
-- The game continues until all possible lines are drawn.
-- The player with the most completed boxes at the end of the game wins.
+Game Rules:
+1. At the start of the game, players take turns selecting and drawing lines between dots.
+2. When a player completes a box, they score a point and continue to draw another line.
+3. The game ends when all possible lines are drawn, and all boxes are completed.
+4. The player with the most completed boxes wins the game.
 
-Controls:
-- Click on the edges between dots to draw a line.
-- Use the menu options to control game settings and options.
+How to Play:
+1. Click on the edges between dots to draw a line.
+2. If a line completes a box, the box will be filled with the current player's color.
+3. Players take turns until the game ends.
 
 Menu Options:
-- Game:
-  - Restart: Start a new game with the current board size.
-  - Undo: Undo the last move made.
-  - Score: Display the current score.
+- **Game**:
+  - Restart: Restart the game with the current board size.
+  - Undo: Undo the last move.
+  - Score: Display the current score of both players.
   - Quit: Exit the game.
 
-- Board:
-  - Add Board Size: Increase the size of the board.
-  - Reduce Board Size: Decrease the size of the board.
-  - Reset Board: Reset the board to default size and settings.
-  
-- Config:
-  - AI Player 1: Toggle AI for Player 1.
-  - AI Player 2: Toggle AI for Player 2.
-  - Auto Restart: Automatically restart the game after it ends.
-  - Music: Toggle background music on/off.
+- **Board**:
+  - Add Board Width: Increase the distance between dots, enlarging the board.
+  - Reduce Board Width: Decrease the distance between dots, shrinking the board.
+  - Add Board Size: Increase the number of dots, enlarging the board size.
+  - Reduce Board Size: Decrease the number of dots, shrinking the board size.
+  - Reset Board: Reset the board to the default size and distance.
 
-- Help:
+- **AI**:
+  - AIPlayer1: Toggle AI control for Player 1.
+  - AIPlayer2: Toggle AI control for Player 2.
+  - Increase AI Search Time: Increase the time AI takes to make decisions.
+  - Reduce AI Search Time: Decrease the time AI takes to make decisions.
+  - Reset AI Search Time: Reset AI search time to the default value.
+
+- **Config**:
+  - Auto Restart: Toggle automatic game restart after a game ends.
+  - Music: Toggle background music.
+  - Save CPU Pprof: Save CPU profiling data for performance analysis.
+
+- **Help**:
   - Help: Display this help document.
 
-Tips:
-- Plan your moves ahead to avoid giving your opponent an opportunity to complete a box.
-- Use the edges wisely to maximize your chances of completing boxes.
+Scoring:
+- Each completed box counts as one point.
+- The player with the most points at the end of the game wins.
 
-Have fun playing Dots and Boxes!
+Tips:
+- Think ahead to avoid giving your opponent an easy opportunity to complete a box.
+- Try to create multiple boxes with a single move when possible.
+
+Enjoy playing Dots and Boxes!
 `
 
 const (
