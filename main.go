@@ -100,28 +100,29 @@ const (
 )
 
 type ChessMeta struct {
-	BoardSize      int
-	BoardSizePower Dot
-	DotWidth       float32
-	DotMargin      float32
-	BoxSize        float32
-	MainWindowSize float32
-	DotDistance    float32
-	AIPlayer1      bool
-	AIPlayer2      bool
-	AutoRestart    bool
-	MusicOn        bool
-	EdgesCount     int
-	AISearchTime   time.Duration
-	MoveRecords    []MoveRecord
-	Dots           []Dot
-	Boxes          []Box
-	FullBoard      Board
-	EdgeNearBoxes  map[Edge][]Box
-	BoxEdges       map[Box][]Edge
-	GlobalBoard    Board
-	NowTurn        Turn
-	PlayerScore    map[Turn]int
+	BoardSize        int
+	BoardSizePower   Dot
+	DotWidth         float32
+	DotMargin        float32
+	BoxSize          float32
+	MainWindowSize   float32
+	DotDistance      float32
+	AIPlayer1        bool
+	AIPlayer2        bool
+	AutoRestart      bool
+	MusicOn          bool
+	EdgesCount       int
+	AISearchTime     time.Duration
+	SearchGoroutines int
+	MoveRecords      []MoveRecord
+	Dots             []Dot
+	Boxes            []Box
+	FullBoard        Board
+	EdgeNearBoxes    map[Edge][]Box
+	BoxEdges         map[Box][]Edge
+	GlobalBoard      Board
+	NowTurn          Turn
+	PlayerScore      map[Turn]int
 }
 
 func NewChessMeta() (chess *ChessMeta) {
@@ -134,16 +135,16 @@ func NewChessMeta() (chess *ChessMeta) {
 		}
 	}
 	return &ChessMeta{
-		BoardSize:    DefaultBoardSize,
-		DotDistance:  DefaultDotDistance,
-		MusicOn:      true,
-		AISearchTime: DefaultStepTime,
+		BoardSize:        DefaultBoardSize,
+		DotDistance:      DefaultDotDistance,
+		MusicOn:          true,
+		AISearchTime:     DefaultStepTime,
+		SearchGoroutines: runtime.NumCPU(),
 	}
 }
 
 var (
 	chess            = NewChessMeta()
-	Goroutines       = runtime.NumCPU()
 	SignChan         = make(chan struct{}, 1)
 	RefreshMacOSIcon func()
 
@@ -170,6 +171,9 @@ var (
 	AddBoardWidthMenuItem        *fyne.MenuItem
 	ReduceBoardWidthMenuItem     *fyne.MenuItem
 	ResetBoardMenuItem           *fyne.MenuItem
+	IncreaseSearchGoroutines     *fyne.MenuItem
+	ReduceSearchGoroutines       *fyne.MenuItem
+	ResetSearchGoroutines        *fyne.MenuItem
 	ScoreMenuItem                *fyne.MenuItem
 	QuitMenuItem                 *fyne.MenuItem
 	HelpMenuItem                 *fyne.MenuItem
@@ -343,11 +347,11 @@ func Search(b Board) (firstEdge Edge, score int) {
 func GetBestEdge() (bestEdge Edge) {
 	globalSearchTime := make(map[Edge]int)
 	globalSumScore := make(map[Edge]int)
-	localSearchTimes := make([]map[Edge]int, Goroutines)
-	localSumScores := make([]map[Edge]int, Goroutines)
+	localSearchTimes := make([]map[Edge]int, chess.SearchGoroutines)
+	localSumScores := make([]map[Edge]int, chess.SearchGoroutines)
 	var wg sync.WaitGroup
-	wg.Add(Goroutines)
-	for i := 0; i < Goroutines; i++ {
+	wg.Add(chess.SearchGoroutines)
+	for i := 0; i < chess.SearchGoroutines; i++ {
 		localSearchTime := make(map[Edge]int)
 		localSumScore := make(map[Edge]int)
 		localSearchTimes[i] = localSearchTime
@@ -370,7 +374,7 @@ func GetBestEdge() (bestEdge Edge) {
 		}(localSearchTime, localSumScore)
 	}
 	wg.Wait()
-	for i := range Goroutines {
+	for i := range chess.SearchGoroutines {
 		for e, s := range localSearchTimes[i] {
 			globalSearchTime[e] += s
 		}
@@ -926,6 +930,15 @@ func FlushMenu() {
 	ResetAISearchTimeMenuItem.Disabled = chess.AISearchTime == DefaultStepTime
 	ResetAISearchTimeMenuItem.Label = "Reset AI Search Time"
 
+	IncreaseSearchGoroutines.Disabled = false
+	IncreaseSearchGoroutines.Label = "Increase Search Goroutines"
+
+	ReduceSearchGoroutines.Disabled = chess.SearchGoroutines <= 1
+	ReduceSearchGoroutines.Label = "Reduce Search Goroutines"
+
+	ResetSearchGoroutines.Disabled = chess.SearchGoroutines == runtime.NumCPU()
+	ResetSearchGoroutines.Label = "Reset Search Goroutines"
+
 	SavePprofMenuItem.Disabled = false
 	SavePprofMenuItem.Label = "Save CPU Pprof"
 
@@ -1105,6 +1118,39 @@ func main() {
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key5},
 	}
 
+	IncreaseSearchGoroutines = &fyne.MenuItem{
+		Action: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			defer Refresh()
+			chess.SearchGoroutines <<= 1
+			SendMessage("Now SearchGoroutines: %d", chess.SearchGoroutines)
+		},
+		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key6},
+	}
+
+	ReduceSearchGoroutines = &fyne.MenuItem{
+		Action: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			defer Refresh()
+			chess.SearchGoroutines >>= 1
+			SendMessage("Now SearchGoroutines: %d", chess.SearchGoroutines)
+		},
+		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key7},
+	}
+
+	ResetSearchGoroutines = &fyne.MenuItem{
+		Action: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			defer Refresh()
+			chess.SearchGoroutines = runtime.NumCPU()
+			SendMessage("Now SearchGoroutines: %d", chess.SearchGoroutines)
+		},
+		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key8},
+	}
+
 	MusicMenuItem = &fyne.MenuItem{
 		Action: func() {
 			mu.Lock()
@@ -1169,7 +1215,10 @@ func main() {
 
 	HelpMenuItem = &fyne.MenuItem{
 		Action: func() {
-			SendMessage(HelpDoc)
+			App.SendNotification(&fyne.Notification{
+				Title:   "Dots-And-Boxes Help Documentation",
+				Content: HelpDoc,
+			})
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyH},
 	}
@@ -1201,6 +1250,10 @@ func main() {
 				IncreaseAISearchTimeMenuItem,
 				ReduceAISearchTimeMenuItem,
 				ResetAISearchTimeMenuItem,
+				fyne.NewMenuItemSeparator(),
+				IncreaseSearchGoroutines,
+				ReduceSearchGoroutines,
+				ResetSearchGoroutines,
 			),
 			fyne.NewMenu(
 				"Config",
