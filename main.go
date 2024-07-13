@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	ginpprof "github.com/gin-contrib/pprof"
-	"github.com/gin-gonic/gin"
 	"image/color"
 	"image/png"
 	"log"
@@ -29,6 +27,8 @@ import (
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
+	ginpprof "github.com/gin-contrib/pprof"
+	"github.com/gin-gonic/gin"
 )
 
 const HelpDoc = `Dots and Boxes Game Help Document
