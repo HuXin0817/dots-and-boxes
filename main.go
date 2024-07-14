@@ -872,6 +872,7 @@ func Recover(MoveRecord []MoveRecord) {
 	for _, r := range MoveRecord {
 		AddEdge(r.MoveEdge)
 	}
+	chess.MoveRecords = MoveRecord
 }
 
 func GetMessage(head string, value bool) string {
