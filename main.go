@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"image/png"
 	"log"
+	"net/http"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"os/signal"
 	"runtime"
@@ -31,98 +34,45 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const HelpDoc = `Dots and Boxes Game Help Document
-
-Game Introduction:
-Dots and Boxes is a simple yet challenging board game. Players take turns drawing lines between dots on the board, forming edges. When a player's drawing completes a box, the player scores a point and continues to the next move. The game ends when all boxes are completed, and the player with the highest score wins.
-
-Game Rules:
-1. At the start of the game, players take turns selecting and drawing lines between dots.
-2. When a player completes a box, they score a point and continue to draw another line.
-3. The game ends when all possible lines are drawn, and all boxes are completed.
-4. The player with the most completed boxes wins the game.
-
-How to Play:
-1. Click on the edges between dots to draw a line.
-2. If a line completes a box, the box will be filled with the current player's color.
-3. Players take turns until the game ends.
-
-Menu Options:
-- **Game**:
-  - Restart: Restart the game with the current board size.
-  - Undo: Undo the last move.
-  - Score: Display the current score of both players.
-  - Quit: Exit the game.
-
-- **Board**:
-  - Add Board Width: Increase the distance between dots, enlarging the board.
-  - Reduce Board Width: Decrease the distance between dots, shrinking the board.
-  - Add Board Size: Increase the number of dots, enlarging the board size.
-  - Reduce Board Size: Decrease the number of dots, shrinking the board size.
-  - Reset Board: Reset the board to the default size and distance.
-
-- **AI**:
-  - AIPlayer1: Toggle AI control for Player 1.
-  - AIPlayer2: Toggle AI control for Player 2.
-  - Increase AI Search Time: Increase the time AI takes to make decisions.
-  - Reduce AI Search Time: Decrease the time AI takes to make decisions.
-  - Reset AI Search Time: Reset AI search time to the default value.
-
-- **Config**:
-  - Auto Restart: Toggle automatic game restart after a game ends.
-  - Music: Toggle background music.
-  - Save CPU Pprof: Save CPU profiling data for performance analysis.
-
-- **Help**:
-  - Help: Display this help document.
-
-Scoring:
-- Each completed box counts as one point.
-- The player with the most points at the end of the game wins.
-
-Tips:
-- Think ahead to avoid giving your opponent an easy opportunity to complete a box.
-- Try to create multiple boxes with a single move when possible.
-
-Enjoy playing Dots and Boxes!
-`
-
 const (
-	AnimationSteps     = 100
-	AnimationStepTime  = time.Second / time.Duration(AnimationSteps)
-	ImagePath          = "Dots-and-Boxes.png"
-	ChessMetaFileName  = "meta.json"
-	DefaultDotDistance = 80
-	DefaultBoardSize   = 6
-	DefaultStepTime    = time.Second
-	MinDotSize         = 60
-	MinBoardSize       = 1
+	AnimationSteps                 = 100
+	AnimationStepTime              = time.Second / time.Duration(AnimationSteps)
+	ImagePath                      = "Dots-and-Boxes.png"
+	ChessMetaFileName              = "meta.json"
+	DefaultDotDistance             = 80
+	DefaultBoardSize               = 6
+	DefaultStepTime                = time.Second
+	DefaultPerformanceAnalysisTime = 30 * time.Second
+	MinDotSize                     = 60
+	MinBoardSize                   = 1
+	HelpDocUrl                     = "https://github.com/HuXin0817/dots-and-boxes/blob/main/README.md"
 )
 
 type ChessMeta struct {
-	BoardSize        int
-	BoardSizePower   Dot
-	DotWidth         float32
-	DotMargin        float32
-	BoxSize          float32
-	MainWindowSize   float32
-	DotDistance      float32
-	AIPlayer1        bool
-	AIPlayer2        bool
-	AutoRestart      bool
-	MusicOn          bool
-	EdgesCount       int
-	AISearchTime     time.Duration
-	SearchGoroutines int
-	MoveRecords      []MoveRecord
-	Dots             []Dot
-	Boxes            []Box
-	FullBoard        Board
-	EdgeNearBoxes    map[Edge][]Box
-	BoxEdges         map[Box][]Edge
-	GlobalBoard      Board
-	NowTurn          Turn
-	PlayerScore      map[Turn]int
+	BoardSize               int
+	BoardSizePower          Dot
+	DotWidth                float32
+	DotMargin               float32
+	BoxSize                 float32
+	MainWindowSize          float32
+	DotDistance             float32
+	AIPlayer1               bool
+	AIPlayer2               bool
+	AutoRestart             bool
+	MusicOn                 bool
+	EdgesCount              int
+	SearchGoroutines        int
+	MoveRecords             []MoveRecord
+	Dots                    []Dot
+	Boxes                   []Box
+	FullBoard               Board
+	EdgeNearBoxes           map[Edge][]Box
+	BoxEdges                map[Box][]Edge
+	GlobalBoard             Board
+	NowTurn                 Turn
+	PlayerScore             map[Turn]int
+	AISearchTime            time.Duration
+	PerformanceAnalysisTime time.Duration
 }
 
 func NewChessMeta() (chess *ChessMeta) {
@@ -135,11 +85,12 @@ func NewChessMeta() (chess *ChessMeta) {
 		}
 	}
 	return &ChessMeta{
-		BoardSize:        DefaultBoardSize,
-		DotDistance:      DefaultDotDistance,
-		MusicOn:          true,
-		AISearchTime:     DefaultStepTime,
-		SearchGoroutines: runtime.NumCPU(),
+		BoardSize:               DefaultBoardSize,
+		DotDistance:             DefaultDotDistance,
+		MusicOn:                 true,
+		AISearchTime:            DefaultStepTime,
+		SearchGoroutines:        runtime.NumCPU(),
+		PerformanceAnalysisTime: DefaultPerformanceAnalysisTime,
 	}
 }
 
@@ -147,44 +98,46 @@ var (
 	chess            = NewChessMeta()
 	SignChan         = make(chan struct{}, 1)
 	RefreshMacOSIcon func()
-	pprofInit        bool
 
-	LightThemeDotCanvasColor = color.NRGBA{R: 255, G: 255, B: 255, A: 255}
-	DarkThemeDotCanvasColor  = color.NRGBA{R: 202, G: 202, B: 202, A: 255}
-	LightThemeColor          = color.NRGBA{R: 242, G: 242, B: 242, A: 255}
-	DarkThemeColor           = color.NRGBA{R: 43, G: 43, B: 43, A: 255}
-	LightThemeButtonColor    = color.NRGBA{R: 217, G: 217, B: 217, A: 255}
-	DarkThemeButtonColor     = color.NRGBA{R: 65, G: 65, B: 65, A: 255}
-	Player1HighlightColor    = color.NRGBA{R: 64, G: 64, B: 255, A: 128}
-	Player2HighlightColor    = color.NRGBA{R: 255, G: 64, B: 64, A: 128}
-	Player1FilledColor       = color.NRGBA{R: 64, G: 64, B: 255, A: 64}
-	Player2FilledColor       = color.NRGBA{R: 255, G: 64, B: 64, A: 64}
-	TipColor                 = color.NRGBA{R: 255, G: 255, B: 64, A: 64}
+	LightThemeDotCanvasColor = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF} // #FFFFFF
+	DarkThemeDotCanvasColor  = color.NRGBA{R: 0xCA, G: 0xCA, B: 0xCA, A: 0xFF} // #CACACA
+	LightThemeColor          = color.NRGBA{R: 0xF2, G: 0xF2, B: 0xF2, A: 0xFF} // #F2F2F2
+	DarkThemeColor           = color.NRGBA{R: 0x2B, G: 0x2B, B: 0x2B, A: 0xFF} // #2B2B2B
+	LightThemeButtonColor    = color.NRGBA{R: 0xD9, G: 0xD9, B: 0xD9, A: 0xFF} // #D9D9D9
+	DarkThemeButtonColor     = color.NRGBA{R: 0x41, G: 0x41, B: 0x41, A: 0xFF} // #414141
+	Player1HighlightColor    = color.NRGBA{R: 0x40, G: 0x40, B: 0xFF, A: 0x80} // #4040FF80
+	Player2HighlightColor    = color.NRGBA{R: 0xFF, G: 0x40, B: 0x40, A: 0x80} // #FF404080
+	Player1FilledColor       = color.NRGBA{R: 0x40, G: 0x40, B: 0xFF, A: 0x40} // #4040FF40
+	Player2FilledColor       = color.NRGBA{R: 0xFF, G: 0x40, B: 0x40, A: 0x40} // #FF404040
+	TipColor                 = color.NRGBA{R: 0xFF, G: 0xFF, B: 0x40, A: 0x40} // #FFFF4040
 
-	RestartMenuItem              *fyne.MenuItem
-	MusicMenuItem                *fyne.MenuItem
-	AIPlayer1MenuItem            *fyne.MenuItem
-	AIPlayer2MenuItem            *fyne.MenuItem
-	AutoRestartMenuItem          *fyne.MenuItem
-	AddBoardSizeMenuItem         *fyne.MenuItem
-	ReduceBoardSizeMenuItem      *fyne.MenuItem
-	UndoMenuItem                 *fyne.MenuItem
-	AddBoardWidthMenuItem        *fyne.MenuItem
-	ReduceBoardWidthMenuItem     *fyne.MenuItem
-	ResetBoardMenuItem           *fyne.MenuItem
-	IncreaseSearchGoroutines     *fyne.MenuItem
-	ReduceSearchGoroutines       *fyne.MenuItem
-	ResetSearchGoroutines        *fyne.MenuItem
-	ScoreMenuItem                *fyne.MenuItem
-	QuitMenuItem                 *fyne.MenuItem
-	HelpMenuItem                 *fyne.MenuItem
-	IncreaseAISearchTimeMenuItem *fyne.MenuItem
-	ReduceAISearchTimeMenuItem   *fyne.MenuItem
-	ResetAISearchTimeMenuItem    *fyne.MenuItem
-	SavePprofMenuItem            *fyne.MenuItem
+	RestartMenuItem                         *fyne.MenuItem
+	MusicMenuItem                           *fyne.MenuItem
+	AIPlayer1MenuItem                       *fyne.MenuItem
+	AIPlayer2MenuItem                       *fyne.MenuItem
+	AutoRestartMenuItem                     *fyne.MenuItem
+	AddBoardSizeMenuItem                    *fyne.MenuItem
+	ReduceBoardSizeMenuItem                 *fyne.MenuItem
+	ResetBoardSizeMenuItem                  *fyne.MenuItem
+	UndoMenuItem                            *fyne.MenuItem
+	AddBoardWidthMenuItem                   *fyne.MenuItem
+	ReduceBoardWidthMenuItem                *fyne.MenuItem
+	ResetBoardWidthMenuItem                 *fyne.MenuItem
+	IncreaseSearchGoroutines                *fyne.MenuItem
+	ReduceSearchGoroutines                  *fyne.MenuItem
+	ResetSearchGoroutines                   *fyne.MenuItem
+	ScoreMenuItem                           *fyne.MenuItem
+	QuitMenuItem                            *fyne.MenuItem
+	HelpMenuItem                            *fyne.MenuItem
+	IncreaseAISearchTimeMenuItem            *fyne.MenuItem
+	ReduceAISearchTimeMenuItem              *fyne.MenuItem
+	ResetAISearchTimeMenuItem               *fyne.MenuItem
+	SavePerformanceAnalysisMenuItem         *fyne.MenuItem
+	IncreasePerformanceAnalysisTimeMenuItem *fyne.MenuItem
+	ReducePerformanceAnalysisTimeMenuItem   *fyne.MenuItem
+	ResetPerformanceAnalysisTimeMenuItem    *fyne.MenuItem
 
-	App                = app.New()
-	MainWindow         = App.NewWindow("Dots and Boxes")
+	MainWindow         = app.New().NewWindow("Dots and Boxes")
 	Container          *fyne.Container
 	DotCanvases        map[Dot]*canvas.Circle
 	EdgesCanvases      map[Edge]*canvas.Line
@@ -193,10 +146,11 @@ var (
 	BoxesFilledColor   map[Box]color.Color
 	GlobalThemeVariant fyne.ThemeVariant
 
-	mu              sync.Mutex
-	boxesCanvasLock sync.Mutex
-	musicLock       sync.Mutex
-	scoreLock       sync.Mutex
+	mu                      sync.Mutex
+	boxesCanvasLock         sync.Mutex
+	musicLock               sync.Mutex
+	scoreLock               sync.Mutex
+	performanceAnalysisLock sync.Mutex
 )
 
 type Turn int
@@ -268,7 +222,7 @@ func (m *MoveRecord) String() string {
 
 func SendMessage(format string, a ...any) {
 	log.Printf(format+"\n", a...)
-	App.SendNotification(&fyne.Notification{
+	fyne.CurrentApp().SendNotification(&fyne.Notification{
 		Title:   "Dots-And-Boxes",
 		Content: fmt.Sprintf(format, a...),
 	})
@@ -907,14 +861,17 @@ func FlushMenu() {
 	ReduceBoardWidthMenuItem.Disabled = chess.DotDistance <= MinDotSize
 	ReduceBoardWidthMenuItem.Label = "Reduce BoardWidth"
 
+	ResetBoardWidthMenuItem.Disabled = chess.DotDistance == DefaultDotDistance
+	ResetBoardWidthMenuItem.Label = "Reset BoardWidth"
+
 	AddBoardSizeMenuItem.Disabled = false
 	AddBoardSizeMenuItem.Label = "Add BoardSize"
 
 	ReduceBoardSizeMenuItem.Disabled = chess.BoardSize <= MinBoardSize
 	ReduceBoardSizeMenuItem.Label = "Reduce BoardSize"
 
-	ResetBoardMenuItem.Disabled = chess.BoardSize == DefaultBoardSize && chess.DotDistance == DefaultBoardSize
-	ResetBoardMenuItem.Label = "Reset Board"
+	ResetBoardSizeMenuItem.Disabled = chess.BoardSize == DefaultBoardSize
+	ResetBoardSizeMenuItem.Label = "Reset BoardSize"
 
 	QuitMenuItem.Disabled = false
 	QuitMenuItem.Label = "Quit"
@@ -943,8 +900,17 @@ func FlushMenu() {
 	ResetSearchGoroutines.Disabled = chess.SearchGoroutines == runtime.NumCPU()
 	ResetSearchGoroutines.Label = "Reset Search Goroutines"
 
-	SavePprofMenuItem.Disabled = false
-	SavePprofMenuItem.Label = "Save CPU Pprof"
+	IncreasePerformanceAnalysisTimeMenuItem.Disabled = false
+	IncreasePerformanceAnalysisTimeMenuItem.Label = "Increase Performance Analysis Time"
+
+	ReducePerformanceAnalysisTimeMenuItem.Disabled = chess.PerformanceAnalysisTime <= time.Second*5
+	ReducePerformanceAnalysisTimeMenuItem.Label = "Reduce Performance Analysis Time"
+
+	ResetPerformanceAnalysisTimeMenuItem.Disabled = chess.PerformanceAnalysisTime == DefaultPerformanceAnalysisTime
+	ResetPerformanceAnalysisTimeMenuItem.Label = "Reset Performance Analysis Time"
+
+	SavePerformanceAnalysisMenuItem.Disabled = false
+	SavePerformanceAnalysisMenuItem.Label = "Save CPU Performance Analysis"
 
 	HelpMenuItem.Disabled = false
 	HelpMenuItem.Label = "Help"
@@ -1002,6 +968,15 @@ func main() {
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyMinus},
 	}
 
+	ResetBoardSizeMenuItem = &fyne.MenuItem{
+		Action: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			defer Refresh()
+			RestartWithCall(DefaultBoardSize)
+		},
+	}
+
 	UndoMenuItem = &fyne.MenuItem{
 		Action: func() {
 			mu.Lock()
@@ -1024,6 +999,7 @@ func main() {
 			defer mu.Unlock()
 			defer Refresh()
 			SetDotDistance(chess.DotDistance + 10)
+			SendMessage("Now BoardWidth: %d", chess.MainWindowSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyUp},
 	}
@@ -1034,23 +1010,19 @@ func main() {
 			defer mu.Unlock()
 			defer Refresh()
 			SetDotDistance(chess.DotDistance - 10)
+			SendMessage("Now BoardWidth: %d", chess.MainWindowSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyDown},
 	}
 
-	ResetBoardMenuItem = &fyne.MenuItem{
+	ResetBoardWidthMenuItem = &fyne.MenuItem{
 		Action: func() {
 			mu.Lock()
 			defer mu.Unlock()
 			defer Refresh()
-			if chess.DotDistance != DefaultDotDistance {
-				SetDotDistance(DefaultDotDistance)
-			}
-			if chess.BoardSize != DefaultBoardSize {
-				RestartWithCall(DefaultBoardSize)
-			}
+			SetDotDistance(DefaultDotDistance)
+			SendMessage("Now BoardWidth: %d", chess.MainWindowSize)
 		},
-		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyR},
 	}
 
 	AIPlayer1MenuItem = &fyne.MenuItem{
@@ -1187,21 +1159,58 @@ func main() {
 		IsQuit:   true,
 	}
 
-	SavePprofMenuItem = &fyne.MenuItem{
+	IncreasePerformanceAnalysisTimeMenuItem = &fyne.MenuItem{
 		Action: func() {
-			if !pprofInit {
-				pprofInit = true
-				go func() {
-					r := gin.Default()
-					ginpprof.Register(r)
-					if err := r.Run(":6060"); err != nil {
-						SendMessage(err.Error())
-					}
-				}()
-			}
-			AnalyzeTime := 10 * time.Second
+			performanceAnalysisLock.Lock()
+			defer performanceAnalysisLock.Unlock()
+			chess.PerformanceAnalysisTime += 5 * time.Second
+			SendMessage("Now PerformanceAnalysisTime: %s", chess.PerformanceAnalysisTime.String())
+		},
+	}
+
+	ReducePerformanceAnalysisTimeMenuItem = &fyne.MenuItem{
+		Action: func() {
+			performanceAnalysisLock.Lock()
+			defer performanceAnalysisLock.Unlock()
+			chess.PerformanceAnalysisTime -= 5 * time.Second
+			SendMessage("Now PerformanceAnalysisTime: %s", chess.PerformanceAnalysisTime.String())
+		},
+	}
+
+	ResetPerformanceAnalysisTimeMenuItem = &fyne.MenuItem{
+		Action: func() {
+			performanceAnalysisLock.Lock()
+			defer performanceAnalysisLock.Unlock()
+			chess.PerformanceAnalysisTime = DefaultPerformanceAnalysisTime
+			SendMessage("Now PerformanceAnalysisTime: %s", chess.PerformanceAnalysisTime.String())
+		},
+	}
+
+	SavePerformanceAnalysisMenuItem = &fyne.MenuItem{
+		Action: func() {
+			performanceAnalysisLock.Lock()
+			defer performanceAnalysisLock.Unlock()
+			SavePerformanceAnalysisMenuItem.Disabled = true
+			MainWindow.MainMenu().Refresh()
+			defer func() {
+				SavePerformanceAnalysisMenuItem.Disabled = false
+				MainWindow.MainMenu().Refresh()
+			}()
+			r := gin.Default()
+			ginpprof.Register(r)
+			srv := &http.Server{Addr: ":6060", Handler: r}
+			defer func(srv *http.Server) {
+				if err := srv.Close(); err != nil {
+					SendMessage(err.Error())
+				}
+			}(srv)
+			go func() {
+				if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+					SendMessage(err.Error())
+				}
+			}()
 			SendMessage("Start to generate pprof")
-			pprofFileName := fmt.Sprintf("%s-%s.pprof", time.Now().Format("2006-01-02 15:04:05"), time.Now().Add(AnalyzeTime).Format("2006-01-02 15:04:05"))
+			pprofFileName := fmt.Sprintf("%s-%s.pprof", time.Now().Format("2006-01-02 15:04:05"), time.Now().Add(chess.PerformanceAnalysisTime).Format("2006-01-02 15:04:05"))
 			f, err := os.Create(pprofFileName)
 			if err != nil {
 				SendMessage("Failed to create pprof file: %v", err)
@@ -1211,9 +1220,9 @@ func main() {
 				SendMessage("Failed to start CPU profiling: %v", err)
 				return
 			}
-			time.Sleep(AnalyzeTime)
+			time.Sleep(chess.PerformanceAnalysisTime)
 			pprof.StopCPUProfile()
-			SendMessage("Finish to generate Pprof: %s", pprofFileName)
+			SendMessage("Finish to generate Performance Analysis: %s", pprofFileName)
 			if err := f.Close(); err != nil {
 				SendMessage("Failed to close pprof file: %v", err)
 			}
@@ -1223,10 +1232,13 @@ func main() {
 
 	HelpMenuItem = &fyne.MenuItem{
 		Action: func() {
-			App.SendNotification(&fyne.Notification{
-				Title:   "Dots-And-Boxes Help Documentation",
-				Content: HelpDoc,
-			})
+			link, err := url.Parse(HelpDocUrl)
+			if err != nil {
+				SendMessage(err.Error())
+			}
+			if err := fyne.CurrentApp().OpenURL(link); err != nil {
+				SendMessage(err.Error())
+			}
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyH},
 	}
@@ -1238,17 +1250,19 @@ func main() {
 				RestartMenuItem,
 				UndoMenuItem,
 				ScoreMenuItem,
-				fyne.NewMenuItemSeparator(),
 				QuitMenuItem,
+				fyne.NewMenuItemSeparator(),
+				HelpMenuItem,
 			),
 			fyne.NewMenu(
 				"Board",
 				AddBoardWidthMenuItem,
 				ReduceBoardWidthMenuItem,
+				ResetBoardWidthMenuItem,
+				fyne.NewMenuItemSeparator(),
 				AddBoardSizeMenuItem,
 				ReduceBoardSizeMenuItem,
-				fyne.NewMenuItemSeparator(),
-				ResetBoardMenuItem,
+				ResetBoardSizeMenuItem,
 			),
 			fyne.NewMenu(
 				"Config",
@@ -1264,21 +1278,23 @@ func main() {
 				fyne.NewMenuItemSeparator(),
 				AutoRestartMenuItem,
 				MusicMenuItem,
-				SavePprofMenuItem,
 			),
 			fyne.NewMenu(
-				"Help",
-				HelpMenuItem,
+				"PerformanceAnalysis",
+				IncreasePerformanceAnalysisTimeMenuItem,
+				ReducePerformanceAnalysisTimeMenuItem,
+				ResetPerformanceAnalysisTimeMenuItem,
+				SavePerformanceAnalysisMenuItem,
 			),
 		),
 	)
 	mu.Lock()
 	MoveRecords := append([]MoveRecord{}, chess.MoveRecords...)
-	SetDotDistance(chess.DotDistance)
 	MainWindow.SetFixedSize(true)
-	App.Settings().SetTheme(GameTheme{})
+	fyne.CurrentApp().Settings().SetTheme(GameTheme{})
 	go func() {
 		time.Sleep(300 * time.Millisecond)
+		SetDotDistance(chess.DotDistance)
 		if len(MoveRecords) > 0 {
 			Recover(MoveRecords)
 		} else {

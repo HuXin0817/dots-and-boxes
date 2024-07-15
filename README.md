@@ -1,108 +1,115 @@
-# Dots-and-Boxes Game
+## Dots and Boxes Game
 
-A classic strategy game implemented using Go and Fyne library for the user interface. This project provides an engaging
-and interactive experience with customizable settings and AI opponents.
+This is a Fyne-based implementation of the classic game Dots and Boxes. The game includes various features such as AI
+players, score tracking, custom board sizes, and more. Below is a comprehensive guide to help you understand and use the
+code.
 
 ![demo](demo.gif)
 
-## Table of Contents
+### Features
 
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Game Rules](#game-rules)
-- [Controls](#controls)
-- [Configuration](#configuration)
-- [Help](#help)
-- [Contributing](#contributing)
-- [License](#license)
+- **Custom Board Size**: Adjust the size of the game board.
+- **AI Players**: Play against AI or let AI play against each other.
+- **Score Tracking**: Keep track of player scores.
+- **Music**: Background music during gameplay.
+- **Performance Analysis**: Measure and analyze the performance of the game.
 
-## Features
+### Requirements
 
-- Two-player gameplay.
-- AI opponents for both Player 1 and Player 2.
-- Customizable board size.
-- Undo last move functionality.
-- Pause and resume the game.
-- Background music with on/off toggle.
-- Automatic game restart option.
-- Visual and sound effects for moves and scoring.
+- Go programming language (>=1.16)
+- Fyne library for GUI
+- Sonic library for JSON operations
+- Beep library for audio playback
+- Gin and pprof for performance analysis
 
-## Installation
+### Installation
 
-1. **Clone the repository:**
-   ```bash
+1. Install Go from the [official website](https://golang.org/dl/).
+2. Install the required libraries:
+   ```sh
+   go get fyne.io/fyne/v2
+   go get github.com/bytedance/sonic
+   go get github.com/faiface/beep
+   go get github.com/faiface/beep/mp3
+   go get github.com/gin-gonic/gin
+   go get github.com/gin-contrib/pprof
+   ```
+
+### Running the Game
+
+1. Clone the repository:
+   ```sh
    git clone https://github.com/HuXin0817/dots-and-boxes.git
    cd dots-and-boxes
    ```
-
-2. **Install dependencies:**
-   Ensure you have Go installed. You can download and install it from [here](https://golang.org/dl/).
-
-   Install the Fyne library:
-   ```bash
-   go get fyne.io/fyne/v2
+2. Build and run the game:
+   ```sh
+   go run main.go
    ```
 
-3. **Build and run the application:**
-   ```bash
-   go build -o dots-and-boxes
-   ./dots-and-boxes
-   ```
+### Gameplay
 
-## Usage
+1. **Starting a Game**: The game starts automatically when you run the application. The default board size is 6x6.
+2. **Making a Move**: Click on the edges to form a box. If you complete a box, you score a point and get another turn.
+3. **Undo Move**: Press 'Z' to undo the last move.
+4. **Restart Game**: Press 'R' to restart the game with the current board size.
+5. **Adjust Board Size**: Use the menu options to increase or decrease the board size.
 
-Run the application and use the mouse to connect dots and form boxes. The game will automatically switch turns between
-players or AI.
+### Menu Options
 
-## Game Rules
+- **Game Menu**:
+    - **Restart**: Restart the game.
+    - **Undo**: Undo the last move.
+    - **Score**: Display current scores.
+    - **Quit**: Exit the game.
+    - **Help**: Open the help documentation.
 
-- The objective is to form more boxes than your opponent.
-- Players take turns to connect two adjacent dots with a horizontal or vertical line.
-- Completing the fourth side of a box scores a point and grants an extra turn.
-- The game ends when all possible lines are drawn, and the player with the most boxes wins.
+- **Board Menu**:
+    - **Add Board Width**: Increase the width of the dots.
+    - **Reduce Board Width**: Decrease the width of the dots.
+    - **Reset Board Width**: Reset the width to default.
+    - **Add Board Size**: Increase the board size.
+    - **Reduce Board Size**: Decrease the board size.
+    - **Reset Board Size**: Reset the board size to default.
 
-## Controls
+- **Config Menu**:
+    - **AI Player 1**: Toggle AI for Player 1.
+    - **AI Player 2**: Toggle AI for Player 2.
+    - **Increase AI Search Time**: Increase the time AI takes to make a move.
+    - **Reduce AI Search Time**: Decrease the time AI takes to make a move.
+    - **Reset AI Search Time**: Reset AI search time to default.
+    - **Increase Search Goroutines**: Increase the number of goroutines for AI search.
+    - **Reduce Search Goroutines**: Decrease the number of goroutines for AI search.
+    - **Reset Search Goroutines**: Reset search goroutines to default.
+    - **Auto Restart**: Toggle auto-restart of the game after completion.
+    - **Music**: Toggle background music.
 
-- **Click** on the edges between dots to draw a line.
-- **Menu Options:**
-    - **Game:**
-        - **Restart:** Start a new game with the current board size.
-        - **Undo:** Undo the last move made.
-        - **Pause:** Pause the game.
-        - **Score:** Display the current score.
-        - **Quit:** Exit the game.
-    - **Board:**
-        - **Add Board Size:** Increase the size of the board.
-        - **Reduce Board Size:** Decrease the size of the board.
-        - **Reset Board:** Reset the board to default size and settings.
-    - **Config:**
-        - **AI Player 1:** Toggle AI for Player 1.
-        - **AI Player 2:** Toggle AI for Player 2.
-        - **Auto Restart:** Automatically restart the game after it ends.
-        - **Music:** Toggle background music on/off.
-    - **Help:**
-        - **Help:** Display the help document.
+- **Performance Analysis Menu**:
+    - **Increase Performance Analysis Time**: Increase the duration for performance analysis.
+    - **Reduce Performance Analysis Time**: Decrease the duration for performance analysis.
+    - **Reset Performance Analysis Time**: Reset performance analysis time to default.
+    - **Save CPU Performance Analysis**: Save the CPU performance analysis data.
 
-## Configuration
+### Customization
 
-- Customize the game settings through the menu options for a personalized experience.
-- Adjust board size and toggle AI players for different levels of challenge.
+You can customize the colors, AI logic, and other game parameters by modifying the constants and functions in the code.
+For example, to change the colors, update the `LightThemeDotCanvasColor`, `DarkThemeDotCanvasColor`, and other color
+variables.
 
-## Help
+### Troubleshooting
 
-For detailed instructions on gameplay and controls, refer to the in-game help section under the Help menu.
+- Ensure all dependencies are installed correctly.
+- Make sure you are using a compatible version of Go.
+- Check for any error messages in the console and resolve them.
 
-## Contributing
+### Contribution
 
-Contributions are welcome! Please fork the repository and submit a pull request with your improvements.
+Feel free to fork the repository, make improvements, and submit pull requests. Contributions are welcome!
 
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Commit your changes (`git commit -am 'Add new feature'`).
-4. Push to the branch (`git push origin feature-branch`).
-5. Create a new pull request.
+### License
 
-## License
+This project is licensed under the Mulan PSL v2 License.
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+---
+
+For detailed documentation and updates, visit the [GitHub repository](https://github.com/HuXin0817/dots-and-boxes).
