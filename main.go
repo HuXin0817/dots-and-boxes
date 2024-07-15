@@ -766,17 +766,19 @@ func Tip(nowStep int, box Box) {
 }
 
 func StoreMoveRecord(WinMessage string) {
-	GameName := fmt.Sprintf("Dox-and-Boxes Game %s", chess.MoveRecords[0].TimeStamp.Format("2006-01-02 15:04:05"))
-	f, err := os.Create(GameName + ".log")
+	startTimeStamp := chess.MoveRecords[0].TimeStamp.Format("2006-01-02 15:04:05")
+	endTimeStamp := chess.MoveRecords[len(chess.MoveRecords)-1].TimeStamp.Format("2006-01-02 15:04:05")
+	gameName := fmt.Sprintf("Dox-and-Boxes Game %s", startTimeStamp)
+	f, err := os.Create(gameName + ".log")
 	if err != nil {
 		SendMessage(err.Error())
 		return
 	}
-	record := fmt.Sprintf("%s, BoardSize: %d\n", GameName, chess.BoardSize)
+	record := fmt.Sprintf("%s %s, BoardSize: %d\n", gameName, gameName, chess.BoardSize)
 	for _, r := range chess.MoveRecords {
 		record = record + r.String() + "\n"
 	}
-	record += WinMessage
+	record += endTimeStamp + WinMessage
 	if _, err := f.WriteString(record); err != nil {
 		SendMessage(err.Error())
 		return
@@ -1059,7 +1061,8 @@ func main() {
 			if !chess.AIPlayer1 {
 				notifySignChan()
 			}
-			SendMessage(GetMessage("AIPlayer1", !chess.AIPlayer1))
+			message := GetMessage("AIPlayer1", !chess.AIPlayer1)
+			SendMessage(message)
 			chess.AIPlayer1 = !chess.AIPlayer1
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key1},
@@ -1073,7 +1076,8 @@ func main() {
 			if !chess.AIPlayer2 {
 				notifySignChan()
 			}
-			SendMessage(GetMessage("AIPlayer2", !chess.AIPlayer2))
+			message := GetMessage("AIPlayer2", !chess.AIPlayer2)
+			SendMessage(message)
 			chess.AIPlayer2 = !chess.AIPlayer2
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key2},
