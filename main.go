@@ -56,13 +56,16 @@ type ChessMeta struct {
 
 // NewChessMeta initializes ChessMeta by reading from a file or setting default values.
 func NewChessMeta() *ChessMeta {
-	if b, err := os.ReadFile(ChessMetaFileName); err == nil { // Read from the meta file if it exists
+	// Read from the meta file if it exists
+	if b, err := os.ReadFile(ChessMetaFileName); err == nil {
 		c := new(ChessMeta)
-		if err := sonic.Unmarshal(b, c); err == nil { // Unmarshal the JSON data
+		// Unmarshal the JSON data
+		if err := sonic.Unmarshal(b, c); err == nil {
 			return c
 		}
 	}
-	return &ChessMeta{ // Return default values if file does not exist or unmarshal fails
+	// Return default values if file does not exist or unmarshal fails
+	return &ChessMeta{
 		BoardSize:               DefaultBoardSize,
 		DotCanvasDistance:       DefaultDotDistance,
 		OpenMusic:               true,
