@@ -11,7 +11,7 @@ var searchEngine SearchEngine
 
 // getNextEdges evaluates and selects the next best edge to draw on the board.
 // It returns the edge that either immediately obtains a score or minimizes the opponent's potential score.
-func (SearchEngine) getNextEdges(b Board) (bestEdge Edge) {
+func (se SearchEngine) getNextEdges(b Board) (bestEdge Edge) {
 	enemyMinScore := 3
 	for e := range AllEdges {
 		// Check if the edge is not a part of the board

@@ -59,50 +59,32 @@ func GetMessage(head string, value bool) string {
 
 // getSaveFilePath returns the save file path selected by the user.
 func getSaveFilePath() (string, error) {
+	var script string
+
 	switch runtime.GOOS {
 	case "darwin":
-		return getSaveFilePathMac()
+		script = `osascript -e 'set myFile to choose file name with prompt "Save game screenshot as:" default name "dots-and-boxes screenshot.png"' -e 'POSIX path of myFile'`
 	case "windows":
-		return getSaveFilePathWindows()
+		script = `Add-Type -AssemblyName System.Windows.Forms; $file = New-Object System.Windows.Forms.SaveFileDialog; $file.Filter = "PNG Files|*.png"; $file.FileName = "dots-and-boxes screenshot.png"; if($file.ShowDialog() -eq 'OK') {$file.FileName}`
 	case "linux":
-		return getSaveFilePathLinux()
+		script = `zenity --file-selection --save --confirm-overwrite --file-filter="*.png" --filename="dots-and-boxes screenshot.png"`
 	default:
 		return "", fmt.Errorf("unsupported platform")
 	}
-}
 
-// getSaveFilePathMac prompts the user to choose a file path on macOS.
-func getSaveFilePathMac() (string, error) {
-	script := `osascript -e 'set myFile to choose file name with prompt "Save game screenshot as:" default name "dots-and-boxes screenshot.png"' -e 'POSIX path of myFile'`
-	cmd := exec.Command("sh", "-c", script)
+	var cmd *exec.Cmd
+
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	} else {
+		cmd = exec.Command("sh", "-c", script)
+	}
+
 	output, err := cmd.Output()
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(output)), nil
-}
 
-// getSaveFilePathWindows prompts the user to choose a file path on Windows.
-func getSaveFilePathWindows() (string, error) {
-	// Implement Windows specific file save dialog using PowerShell or other methods
-	script := `Add-Type -AssemblyName System.Windows.Forms; $file = New-Object System.Windows.Forms.SaveFileDialog; $file.Filter = "PNG Files|*.png"; $file.FileName = "dots-and-boxes screenshot.png"; if($file.ShowDialog() -eq 'OK') {$file.FileName}`
-	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-// getSaveFilePathLinux prompts the user to choose a file path on Linux.
-func getSaveFilePathLinux() (string, error) {
-	// Implement Linux specific file save dialog using zenity, kdialog, or other methods
-	script := `zenity --file-selection --save --confirm-overwrite --file-filter="*.png" --filename="dots-and-boxes screenshot.png"`
-	cmd := exec.Command("sh", "-c", script)
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
 	return strings.TrimSpace(string(output)), nil
 }
 

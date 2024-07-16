@@ -1,5 +1,3 @@
-//go:build windows || darwin || linux
-
 package main
 
 import (
@@ -12,56 +10,61 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-var musicLock sync.Mutex // Mutex to synchronize music playing
+// musicLock is a mutex to ensure that music playback is thread-safe.
+var musicLock sync.Mutex
 
-// Initialize the PlayMoveMusic and PlayScoreMusic functions to play respective music
-func init() {
-	PlayMoveMusic = func() error { return play(moveMusic()) }
-	PlayScoreMusic = func() error { return play(scoreMusic()) }
-}
-
-// Music is a wrapper around bytes.Reader to implement the io.ReadCloser interface
+// Music is a type that embeds a bytes.Reader to simulate an io.ReadCloser for the music data.
 type Music struct {
 	*bytes.Reader
 }
 
-// Close is a no-op method to satisfy the io.ReadCloser interface
+// Close is a test double implementation to satisfy the io.Closer interface.
 func (rc *Music) Close() error { return nil }
 
-// moveMusic returns a Music object initialized with moveMp3 bytes
-func moveMusic() *Music { return &Music{bytes.NewReader(moveMp3)} }
+// MusicPlayer is an empty struct that provides methods to play different types of music.
+type MusicPlayer struct{}
 
-// scoreMusic returns a Music object initialized with scoreMp3 bytes
-func scoreMusic() *Music { return &Music{bytes.NewReader(scoreMp3)} }
+// musicPlayer is an instance of MusicPlayer.
+var musicPlayer = MusicPlayer{}
 
-// play takes a Music object, decodes it, and plays it using the beep package
-func play(music *Music) error {
-	musicLock.Lock()
-	defer musicLock.Unlock()
+// PlayMoveMusic plays the music associated with a move action.
+func (m MusicPlayer) PlayMoveMusic() error { return m.play(m.moveMusic()) }
 
-	// Decode the MP3 data
+// PlayScoreMusic plays the music associated with a scoring action.
+func (m MusicPlayer) PlayScoreMusic() error { return m.play(m.scoreMusic()) }
+
+// moveMusic returns a Music object containing the move music data.
+func (m MusicPlayer) moveMusic() *Music { return &Music{bytes.NewReader(moveMp3)} }
+
+// scoreMusic returns a Music object containing the score music data.
+func (m MusicPlayer) scoreMusic() *Music { return &Music{bytes.NewReader(scoreMp3)} }
+
+// play takes a Music object and handles the decoding and playback of the music.
+func (m MusicPlayer) play(music *Music) error {
+	musicLock.Lock()         // Acquire the lock to ensure thread-safe playback
+	defer musicLock.Unlock() // Release the lock when the function exits
+
+	// Decode the MP3 data from the Music object
 	streamer, format, err := mp3.Decode(music)
 	if err != nil {
 		return err
 	}
 
-	// Initialize the speaker with the sample rate and buffer size
+	// Initialize the speaker with the correct format and a buffer size
 	if err := speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10)); err != nil {
 		return err
 	}
 
-	// Create a channel to signal when the music has finished playing
-	done := make(chan bool)
+	done := make(chan bool) // Channel to signal when playback is done
 
-	// Play the music and signal when done
+	// Play the music and signal when it finishes
 	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
 		done <- true
 	})))
 
-	// Wait for the music to finish
-	<-done
+	<-done // Wait for the playback to complete
 
-	// Close the streamer
+	// Close the streamer and check for errors
 	if err := streamer.Close(); err != nil {
 		return err
 	}

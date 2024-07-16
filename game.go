@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
+	"image/color"
+	"os"
+	"sync"
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/bytedance/sonic"
-	"image/color"
-	"os"
-	"sync"
-	"time"
 )
 
 // GameManager interface defines the core functions needed to manage the game state.
@@ -260,11 +261,11 @@ func (g gameManager) AddEdge(e Edge) {
 		go func() {
 			defer wg.Done()
 			if score > 0 {
-				if err := PlayScoreMusic(); err != nil {
+				if err := musicPlayer.PlayScoreMusic(); err != nil {
 					SendMessage(err.Error())
 				}
 			} else {
-				if err := PlayMoveMusic(); err != nil {
+				if err := musicPlayer.PlayMoveMusic(); err != nil {
 					SendMessage(err.Error())
 				}
 			}

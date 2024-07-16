@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fyne.io/fyne/v2/theme"
 	"image/color"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/theme"
 )
 
 var (
@@ -62,19 +62,13 @@ func (g *GameTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) c
 }
 
 // Icon returns the main window icon for the given gameTheme icon name
-func (g *GameTheme) Icon(fyne.ThemeIconName) fyne.Resource {
-	return MainWindow.Icon()
-}
+func (g *GameTheme) Icon(fyne.ThemeIconName) fyne.Resource { return MainWindow.Icon() }
 
 // Font returns the font resource for the given text style
-func (g *GameTheme) Font(style fyne.TextStyle) fyne.Resource {
-	return theme.DefaultTheme().Font(style)
-}
+func (g *GameTheme) Font(style fyne.TextStyle) fyne.Resource { return theme.DefaultTheme().Font(style) }
 
 // Size returns the size for the given gameTheme size name
-func (g *GameTheme) Size(name fyne.ThemeSizeName) float32 {
-	return theme.DefaultTheme().Size(name)
-}
+func (g *GameTheme) Size(name fyne.ThemeSizeName) float32 { return theme.DefaultTheme().Size(name) }
 
 // getColorByVariant returns the appropriate color based on the current gameTheme variant
 func (g *GameTheme) getColorByVariant(lightColor, darkColor color.Color) color.Color {

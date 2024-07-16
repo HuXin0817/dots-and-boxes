@@ -96,10 +96,8 @@ var (
 	performanceAnalysisLock sync.Mutex // Mutex for performance analysis synchronization
 	sendMessageLock         sync.Mutex // Mutex for send message synchronization
 
-	OutputLogFile    *os.File                      // File for output log
-	RefreshMacOSIcon = func([]byte) {}             // Function for refreshing MacOS icon
-	PlayMoveMusic    = func() error { return nil } // Function for playing move music
-	PlayScoreMusic   = func() error { return nil } // Function for playing score music
+	OutputLogFile    *os.File          // File for output log
+	RefreshMacOSIcon = func([]byte) {} // Function for refreshing MacOS icon
 )
 
 // init initializes the output log file and handles potential errors.
