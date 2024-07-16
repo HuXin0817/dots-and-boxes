@@ -166,23 +166,20 @@ type Board interface {
 type board map[Edge]struct{}
 
 // NewBoard creates a new, empty board.
-func NewBoard() Board {
-	b := make(board)
-	return &b
-}
+func NewBoard() Board { return make(board) }
 
-func (b *board) Add(e Edge) { (*b)[e] = struct{}{} }
+func (b board) Add(e Edge) { b[e] = struct{}{} }
 
-func (b *board) Contains(e Edge) bool {
-	_, ok := (*b)[e]
+func (b board) Contains(e Edge) bool {
+	_, ok := b[e]
 	return ok
 }
 
-func (b *board) Size() int { return len(*b) }
+func (b board) Size() int { return len(b) }
 
-func (b *board) Clone() Board {
+func (b board) Clone() Board {
 	cb := make(board, b.Size())
-	for e := range *b {
+	for e := range b {
 		cb.Add(e)
 	}
 	return &cb
