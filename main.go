@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Constants for various configurations
 const HelpDocUrl = "https://github.com/HuXin0817/dots-and-boxes/blob/main/README.md"
 
 const (
@@ -34,6 +35,7 @@ const (
 	MinBoardSize                   = 1                // Minimum board size
 )
 
+// ChessMeta stores the configuration and state of the game
 type ChessMeta struct {
 	BoardSize               int           `json:"boardSize"`               // Size of the board
 	BoardSizePower          Dot           `json:"boardSizePower"`          // Power of the board size (used for edge calculations)
@@ -70,6 +72,7 @@ func NewChessMeta() *ChessMeta {
 	}
 }
 
+// Global variables and initialization
 var (
 	chess             = NewChessMeta()                        // Initialize chess meta data
 	Player1Score      int                                     // Score of Player 1
@@ -108,13 +111,15 @@ func init() {
 	}
 }
 
+// Turn represents the current player's turn
 type Turn int
 
 const (
-	Player1Turn Turn = 1
-	Player2Turn      = -Player1Turn
+	Player1Turn Turn = 1  // Constant for Player 1's turn
+	Player2Turn      = -1 // Constant for Player 2's turn
 )
 
+// String returns the string representation of the current turn.
 func (t Turn) String() string {
 	if t == Player1Turn {
 		return "Player1"
@@ -126,57 +131,74 @@ func (t Turn) String() string {
 // ChangeTurn switches the current turn to the other player.
 func ChangeTurn(t *Turn) { *t = -*t }
 
+// Dot represents a dot on the board.
 type Dot int
 
 // NewDot creates a new dot based on x and y coordinates.
 func NewDot(x, y int) Dot { return Dot(x*chess.BoardSize + y) }
 
+// X returns the x-coordinate of the dot.
 func (d Dot) X() int { return int(d) / chess.BoardSize }
 
+// Y returns the y-coordinate of the dot.
 func (d Dot) Y() int { return int(d) % chess.BoardSize }
 
+// String returns the string representation of the dot.
 func (d Dot) String() string { return fmt.Sprintf("(%v, %v)", d.X(), d.Y()) }
 
+// Edge represents an edge between two dots.
 type Edge int
 
-const InvalidEdge Edge = 0
+const InvalidEdge Edge = 0 // Constant for invalid edge
 
 // NewEdge creates a new edge between two dots.
 func NewEdge(Dot1, Dot2 Dot) Edge { return Edge(Dot1*chess.BoardSizePower + Dot2) }
 
+// Dot1 returns the first dot of the edge.
 func (e Edge) Dot1() Dot { return Dot(e) / chess.BoardSizePower }
 
+// Dot2 returns the second dot of the edge.
 func (e Edge) Dot2() Dot { return Dot(e) % chess.BoardSizePower }
 
-func (e Edge) String() string { return fmt.Sprintf("%v => %v", e.Dot1(), e.Dot1()) }
+// String returns the string representation of the edge.
+func (e Edge) String() string { return fmt.Sprintf("%v => %v", e.Dot1(), e.Dot2()) }
 
+// AdjacentBoxes returns the boxes adjacent to the edge.
 func (e Edge) AdjacentBoxes() []Box { return EdgeAdjacentBoxes[e] }
 
+// Box represents a box on the board.
 type Box int
 
+// Edges returns the edges that form the box.
 func (b Box) Edges() []Edge { return AllEdgesInBox[b] }
 
+// Board interface defines the methods for managing the board state.
 type Board interface {
-	Add(e Edge)
-	Contains(e Edge) bool
-	Clone() Board
-	Size() int
+	Add(e Edge)           // Adds an edge to the board
+	Contains(e Edge) bool // Checks if an edge is on the board
+	Clone() Board         // Clones the board
+	Size() int            // Returns the size of the board
 }
 
+// board is a concrete implementation of the Board interface.
 type board map[Edge]struct{}
 
 // NewBoard creates a new, empty board.
 func NewBoard() Board { return make(board) }
 
+// Add adds an edge to the board.
 func (b board) Add(e Edge) { b[e] = struct{}{} }
 
+// Contains checks if an edge is on the board.
 func (b board) Contains(e Edge) bool {
 	_, ok := b[e]
 	return ok
 }
 
+// Size returns the number of edges on the board.
 func (b board) Size() int { return len(b) }
 
+// Clone creates a copy of the board.
 func (b board) Clone() Board {
 	cb := make(board, b.Size())
 	for e := range b {
@@ -185,6 +207,7 @@ func (b board) Clone() Board {
 	return &cb
 }
 
+// MoveRecord records a move in the game.
 type MoveRecord struct {
 	TimeStamp    time.Time `json:"timeStamp"`    // The timestamp of the move
 	Step         int       `json:"step"`         // The step number of the move
@@ -194,6 +217,7 @@ type MoveRecord struct {
 	Player2Score int       `json:"player2Score"` // The score of Player 2 after the move
 }
 
+// String returns the string representation of the move record.
 func (m MoveRecord) String() string {
 	return fmt.Sprintf("%v Step: %v, Turn: %v, Edge: %v, Player1Score: %v, Player2Score: %v", m.TimeStamp.Format(time.DateTime), m.Step, m.Player, m.MoveEdge, m.Player1Score, m.Player2Score)
 }
@@ -264,8 +288,10 @@ func SetDotDistance(d float32) {
 	game.Recover(moveRecord)
 }
 
+// transPosition translates a coordinate to its position on the canvas.
 func transPosition(x int) float32 { return chess.BoardMargin + float32(x)*chess.DotCanvasDistance }
 
+// GetDotPosition returns the position of a dot on the canvas.
 func GetDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
 
 // getEdgeButtonSizeAndPosition calculates the size and position of the edge button.
@@ -318,6 +344,7 @@ func NewBoxCanvas(box Box) *canvas.Rectangle {
 	return newBoxCanvas
 }
 
+// main is the entry point of the application.
 func main() {
 	// Set the Gin framework to release mode.
 	gin.SetMode(gin.ReleaseMode)

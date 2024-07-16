@@ -174,8 +174,7 @@ func (g gameManager) restart(NewBoardSize int) {
 		g.notifySignChan()
 		for range SignChan {
 			globalLock.Lock()
-			bestEdge := searchEngine.GetBestEdge()
-			g.AddEdge(bestEdge)
+			g.AddEdge(searchEngine.GetBestEdge())
 			g.Refresh()
 			globalLock.Unlock()
 		}
