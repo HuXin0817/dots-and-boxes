@@ -1,5 +1,3 @@
-//go:build !ios && darwin
-
 package main
 
 /*
@@ -8,16 +6,18 @@ package main
 #include <Cocoa/Cocoa.h>
 #include <stdlib.h>
 
-void setApplicationIconImage(const char* path) {
+// setApplicationIconImageFromData sets the application icon using image data in NSData format
+void setApplicationIconImageFromData(const char* data, int length) {
     @autoreleasepool {
-        NSString *nsPath = [NSString stringWithUTF8String:path];
-        NSImage *image = [[NSImage alloc] initWithContentsOfFile:nsPath];
+        NSData *imageData = [NSData dataWithBytes:data length:length];
+        NSImage *image = [[NSImage alloc] initWithData:imageData];
         if (image) {
             [NSApp setApplicationIconImage:image];
         }
     }
 }
 
+// initializeNSApplication initializes the shared NSApplication instance
 void initializeNSApplication() {
     @autoreleasepool {
         [NSApplication sharedApplication];
@@ -26,11 +26,22 @@ void initializeNSApplication() {
 */
 import "C"
 
-var CImagePath = C.CString(ImagePath)
+import (
+	"unsafe"
+)
 
+// init function initializes the NSApplication and sets the RefreshMacOSIcon function
 func init() {
+	// Call the initializeNSApplication function to initialize the shared NSApplication instance
 	C.initializeNSApplication()
-	RefreshMacOSIcon = func() {
-		C.setApplicationIconImage(CImagePath)
+
+	// Define the RefreshMacOSIcon function to set the application icon using the provided image data
+	RefreshMacOSIcon = func(data []byte) {
+		// Convert the Go byte slice to a C pointer
+		cData := C.CBytes(data)
+		// Ensure the C memory is freed after use
+		defer C.free(unsafe.Pointer(cData))
+		// Call the setApplicationIconImageFromData function to set the application icon
+		C.setApplicationIconImageFromData((*C.char)(cData), C.int(len(data)))
 	}
 }

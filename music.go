@@ -1,4 +1,73 @@
+//go:build windows || darwin || linux
+
 package main
+
+import (
+	"bytes"
+	"sync"
+	"time"
+
+	"github.com/faiface/beep"
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/speaker"
+)
+
+var musicLock sync.Mutex // Mutex to synchronize music playing
+
+// Initialize the PlayMoveMusic and PlayScoreMusic functions to play respective music
+func init() {
+	PlayMoveMusic = func() error { return play(moveMusic()) }
+	PlayScoreMusic = func() error { return play(scoreMusic()) }
+}
+
+// Music is a wrapper around bytes.Reader to implement the io.ReadCloser interface
+type Music struct {
+	*bytes.Reader
+}
+
+// Close is a no-op method to satisfy the io.ReadCloser interface
+func (rc *Music) Close() error { return nil }
+
+// moveMusic returns a Music object initialized with moveMp3 bytes
+func moveMusic() *Music { return &Music{bytes.NewReader(moveMp3)} }
+
+// scoreMusic returns a Music object initialized with scoreMp3 bytes
+func scoreMusic() *Music { return &Music{bytes.NewReader(scoreMp3)} }
+
+// play takes a Music object, decodes it, and plays it using the beep package
+func play(music *Music) error {
+	musicLock.Lock()
+	defer musicLock.Unlock()
+
+	// Decode the MP3 data
+	streamer, format, err := mp3.Decode(music)
+	if err != nil {
+		return err
+	}
+
+	// Initialize the speaker with the sample rate and buffer size
+	if err := speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10)); err != nil {
+		return err
+	}
+
+	// Create a channel to signal when the music has finished playing
+	done := make(chan bool)
+
+	// Play the music and signal when done
+	speaker.Play(beep.Seq(streamer, beep.Callback(func() {
+		done <- true
+	})))
+
+	// Wait for the music to finish
+	<-done
+
+	// Close the streamer
+	if err := streamer.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 var moveMp3 = []byte{
 	0x49, 0x44, 0x33, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x28, 0x54, 0x53,
