@@ -21,7 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Constants for various configurations
+// HelpDocUrl Constants for various configurations
 const HelpDocUrl = "https://github.com/HuXin0817/dots-and-boxes/blob/main/README.md"
 
 const (
@@ -95,12 +95,12 @@ var (
 	BoxesFilledColor  map[Box]color.Color                     // Colors for filled boxes
 
 	globalLock              sync.Mutex // Global mutex for synchronization
-	boxesCanvasLock         sync.Mutex // Mutex for boxes canvas synchronization
+	boxesCanvasLock         sync.Mutex // Mutex for box canvas synchronization
 	performanceAnalysisLock sync.Mutex // Mutex for performance analysis synchronization
-	sendMessageLock         sync.Mutex // Mutex for send message synchronization
+	sendMessageLock         sync.Mutex // Mutex for sent message synchronization
 
 	OutputLogFile    *os.File          // File for output log
-	RefreshMacOSIcon = func([]byte) {} // Function for refreshing MacOS icon
+	RefreshMacOSIcon = func([]byte) {} // Function for refreshing macOS icon
 )
 
 // init initializes the output log file and handles potential errors.
@@ -344,7 +344,7 @@ func NewBoxCanvas(box Box) *canvas.Rectangle {
 	return newBoxCanvas
 }
 
-// main is the entry point of the application.
+// the main is the entry point of the application.
 func main() {
 	// Set the Gin framework to release mode.
 	gin.SetMode(gin.ReleaseMode)
