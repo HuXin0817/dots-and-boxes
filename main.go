@@ -115,8 +115,8 @@ func init() {
 type Turn int
 
 const (
-	Player1Turn Turn = 1  // Constant for Player 1's turn
-	Player2Turn      = -1 // Constant for Player 2's turn
+	Player1Turn Turn = 1            // Constant for Player 1's turn
+	Player2Turn      = -Player1Turn // Constant for Player 2's turn
 )
 
 // String returns the string representation of the current turn.
