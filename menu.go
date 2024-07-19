@@ -50,14 +50,6 @@ var (
 	ResetPerformanceAnalysisTimeMenuItem    *fyne.MenuItem
 )
 
-func GetMessage(head string, value bool) string {
-	if value {
-		return head + " ON"
-	} else {
-		return head + " OFF"
-	}
-}
-
 // getSaveFilePath returns the save file path selected by the user.
 func getSaveFilePath() (string, error) {
 	var script string

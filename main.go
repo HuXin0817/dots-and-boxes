@@ -226,6 +226,14 @@ func (m MoveRecord) String() string {
 	return fmt.Sprintf("%v Step: %v, Turn: %v, Edge: %v, Player1Score: %v, Player2Score: %v", m.TimeStamp.Format(time.DateTime), m.Step, m.Player, m.MoveEdge, m.Player1Score, m.Player2Score)
 }
 
+func GetMessage(head string, value bool) string {
+	if value {
+		return head + " ON"
+	} else {
+		return head + " OFF"
+	}
+}
+
 type MessageManager struct {
 	mu   sync.Mutex // Mutex for sent message synchronization
 	file *os.File
