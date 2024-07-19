@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"image/color"
 	"image/png"
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -25,8 +24,7 @@ import (
 const HelpDocUrl = "https://github.com/HuXin0817/dots-and-boxes/blob/main/README.md"
 
 const (
-	ChessMetaFileName              = "meta.json"      // File name for storing chess meta data
-	OutputLogFileName              = "output.log"     // File name for storing output logs
+	ChessMetaFileName              = "meta.json"      // File name for storing Chess meta data
 	DefaultDotDistance             = 80               // Default distance between dots
 	DefaultBoardSize               = 6                // Default board size
 	DefaultStepTime                = time.Second      // Default time for each AI step
@@ -51,7 +49,7 @@ type ChessMeta struct {
 	AISearchGoroutines      int           `json:"aiSearchGoroutines"`      // Number of goroutines for AI search
 	AISearchTime            time.Duration `json:"aiSearchTime"`            // Time duration for AI search
 	PerformanceAnalysisTime time.Duration `json:"performanceAnalysisTime"` // Time duration for performance analysis
-	ChessMoveRecords        []MoveRecord  `json:"chessMoveRecords"`        // Records of chess moves
+	ChessMoveRecords        []MoveRecord  `json:"chessMoveRecords"`        // Records of Chess moves
 }
 
 // NewChessMeta initializes ChessMeta by reading from a file or setting default values.
@@ -77,7 +75,8 @@ func NewChessMeta() *ChessMeta {
 
 // Global variables and initialization
 var (
-	chess             = NewChessMeta()                        // Initialize chess meta data
+	Chess             = NewChessMeta()                        // Initialize Chess meta data
+	Message           = NewMessageManager()                   // Initialize MessageManager
 	Player1Score      int                                     // Score of Player 1
 	Player2Score      int                                     // Score of Player 2
 	CurrentBoard      Board                                   // Current state of the board
@@ -97,22 +96,12 @@ var (
 	EdgeButtons       map[Edge]*widget.Button                 // Buttons for edges
 	BoxesFilledColor  map[Box]color.Color                     // Colors for filled boxes
 
-	globalLock              sync.Mutex // Global mutex for synchronization
-	boxesCanvasLock         sync.Mutex // Mutex for box canvas synchronization
-	performanceAnalysisLock sync.Mutex // Mutex for performance analysis synchronization
-	sendMessageLock         sync.Mutex // Mutex for sent message synchronization
+	globalLock      sync.Mutex // Global mutex for synchronization
+	boxesCanvasLock sync.Mutex // Mutex for box canvas synchronization
 
 	OutputLogFile    *os.File          // File for output log
 	RefreshMacOSIcon = func([]byte) {} // Function for refreshing macOS icon
 )
-
-// init initializes the output log file and handles potential errors.
-func init() {
-	var err error
-	if OutputLogFile, err = os.OpenFile(OutputLogFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
-		panic(err)
-	}
-}
 
 // Turn represents the current player's turn
 type Turn int
@@ -138,13 +127,13 @@ func ChangeTurn(t *Turn) { *t = -*t }
 type Dot int
 
 // NewDot creates a new dot based on x and y coordinates.
-func NewDot(x, y int) Dot { return Dot(x*chess.BoardSize + y) }
+func NewDot(x, y int) Dot { return Dot(x*Chess.BoardSize + y) }
 
 // X returns the x-coordinate of the dot.
-func (d Dot) X() int { return int(d) / chess.BoardSize }
+func (d Dot) X() int { return int(d) / Chess.BoardSize }
 
 // Y returns the y-coordinate of the dot.
-func (d Dot) Y() int { return int(d) % chess.BoardSize }
+func (d Dot) Y() int { return int(d) % Chess.BoardSize }
 
 // String returns the string representation of the dot.
 func (d Dot) String() string { return fmt.Sprintf("(%v, %v)", d.X(), d.Y()) }
@@ -155,13 +144,13 @@ type Edge int
 const InvalidEdge Edge = 0 // Constant for invalid edge
 
 // NewEdge creates a new edge between two dots.
-func NewEdge(Dot1, Dot2 Dot) Edge { return Edge(Dot1*chess.BoardSizePower + Dot2) }
+func NewEdge(Dot1, Dot2 Dot) Edge { return Edge(Dot1*Chess.BoardSizePower + Dot2) }
 
 // Dot1 returns the first dot of the edge.
-func (e Edge) Dot1() Dot { return Dot(e) / chess.BoardSizePower }
+func (e Edge) Dot1() Dot { return Dot(e) / Chess.BoardSizePower }
 
 // Dot2 returns the second dot of the edge.
-func (e Edge) Dot2() Dot { return Dot(e) % chess.BoardSizePower }
+func (e Edge) Dot2() Dot { return Dot(e) % Chess.BoardSizePower }
 
 // String returns the string representation of the edge.
 func (e Edge) String() string { return fmt.Sprintf("%v => %v", e.Dot1(), e.Dot2()) }
@@ -225,21 +214,6 @@ func (m MoveRecord) String() string {
 	return fmt.Sprintf("%v Step: %v, Turn: %v, Edge: %v, Player1Score: %v, Player2Score: %v", m.TimeStamp.Format(time.DateTime), m.Step, m.Player, m.MoveEdge, m.Player1Score, m.Player2Score)
 }
 
-// SendMessage sends a notification and logs the message.
-func SendMessage(format string, a ...any) {
-	sendMessageLock.Lock()
-	defer sendMessageLock.Unlock()
-	log.Printf(format+"\n", a...)
-	fyne.CurrentApp().SendNotification(&fyne.Notification{
-		Title:   "Dots-And-Boxes",
-		Content: fmt.Sprintf(format, a...),
-	})
-	if _, err := OutputLogFile.WriteString(time.Now().Format(time.DateTime) + " " + fmt.Sprintf(format, a...) + "\n"); err != nil {
-		log.Println(err)
-		return
-	}
-}
-
 // EdgesCountInBox counts how many edges in the specified box are already on the board.
 func EdgesCountInBox(b Board, box Box) (count int) {
 	boxEdges := box.Edges()
@@ -281,18 +255,18 @@ func ObtainsBoxes(b Board, e Edge) (obtainsBoxes []Box) {
 
 // SetDotDistance sets the distance between dots and updates the board layout.
 func SetDotDistance(d float32) {
-	chess.DotCanvasDistance = d
-	chess.DotCanvasWidth = chess.DotCanvasDistance / 5
-	chess.BoardMargin = chess.DotCanvasDistance / 3 * 2
-	chess.BoxCanvasSize = chess.DotCanvasDistance - chess.DotCanvasWidth
-	chess.MainWindowSize = chess.DotCanvasDistance*float32(chess.BoardSize) + chess.BoardMargin - 5
-	MainWindow.Resize(fyne.NewSize(chess.MainWindowSize, chess.MainWindowSize))
-	moveRecord := append([]MoveRecord{}, chess.ChessMoveRecords...)
+	Chess.DotCanvasDistance = d
+	Chess.DotCanvasWidth = Chess.DotCanvasDistance / 5
+	Chess.BoardMargin = Chess.DotCanvasDistance / 3 * 2
+	Chess.BoxCanvasSize = Chess.DotCanvasDistance - Chess.DotCanvasWidth
+	Chess.MainWindowSize = Chess.DotCanvasDistance*float32(Chess.BoardSize) + Chess.BoardMargin - 5
+	MainWindow.Resize(fyne.NewSize(Chess.MainWindowSize, Chess.MainWindowSize))
+	moveRecord := append([]MoveRecord{}, Chess.ChessMoveRecords...)
 	game.Recover(moveRecord)
 }
 
 // transPosition translates a coordinate to its position on the canvas.
-func transPosition(x int) float32 { return chess.BoardMargin + float32(x)*chess.DotCanvasDistance }
+func transPosition(x int) float32 { return Chess.BoardMargin + float32(x)*Chess.DotCanvasDistance }
 
 // GetDotPosition returns the position of a dot on the canvas.
 func GetDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
@@ -300,16 +274,16 @@ func GetDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), tra
 // getEdgeButtonSizeAndPosition calculates the size and position of the edge button.
 func getEdgeButtonSizeAndPosition(e Edge) (size fyne.Size, pos fyne.Position) {
 	if e.Dot1().X() == e.Dot2().X() {
-		size = fyne.NewSize(chess.DotCanvasWidth, chess.DotCanvasDistance)
+		size = fyne.NewSize(Chess.DotCanvasWidth, Chess.DotCanvasDistance)
 		pos = fyne.NewPos(
-			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+chess.DotCanvasWidth/2,
-			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+chess.DotCanvasWidth/2,
+			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+Chess.DotCanvasWidth/2,
+			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+Chess.DotCanvasWidth/2,
 		)
 	} else {
-		size = fyne.NewSize(chess.DotCanvasDistance, chess.DotCanvasWidth)
+		size = fyne.NewSize(Chess.DotCanvasDistance, Chess.DotCanvasWidth)
 		pos = fyne.NewPos(
-			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+chess.DotCanvasWidth/2,
-			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+chess.DotCanvasWidth/2,
+			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+Chess.DotCanvasWidth/2,
+			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+Chess.DotCanvasWidth/2,
 		)
 	}
 	return
@@ -318,32 +292,32 @@ func getEdgeButtonSizeAndPosition(e Edge) (size fyne.Size, pos fyne.Position) {
 // NewDotCanvas creates a new dot canvas for the specified dot.
 func NewDotCanvas(d Dot) *canvas.Circle {
 	newDotCanvas := canvas.NewCircle(gameTheme.GetDotCanvasColor())
-	newDotCanvas.Resize(fyne.NewSize(chess.DotCanvasWidth, chess.DotCanvasWidth))
+	newDotCanvas.Resize(fyne.NewSize(Chess.DotCanvasWidth, Chess.DotCanvasWidth))
 	newDotCanvas.Move(fyne.NewPos(GetDotPosition(d)))
 	return newDotCanvas
 }
 
 // NewEdgeCanvas creates a new edge canvas for the specified edge.
 func NewEdgeCanvas(e Edge) *canvas.Line {
-	x1 := transPosition(e.Dot1().X()) + chess.DotCanvasWidth/2
-	y1 := transPosition(e.Dot1().Y()) + chess.DotCanvasWidth/2
-	x2 := transPosition(e.Dot2().X()) + chess.DotCanvasWidth/2
-	y2 := transPosition(e.Dot2().Y()) + chess.DotCanvasWidth/2
+	x1 := transPosition(e.Dot1().X()) + Chess.DotCanvasWidth/2
+	y1 := transPosition(e.Dot1().Y()) + Chess.DotCanvasWidth/2
+	x2 := transPosition(e.Dot2().X()) + Chess.DotCanvasWidth/2
+	y2 := transPosition(e.Dot2().Y()) + Chess.DotCanvasWidth/2
 	newEdgeCanvas := canvas.NewLine(gameTheme.GetDotCanvasColor())
 	newEdgeCanvas.Position1 = fyne.NewPos(x1, y1)
 	newEdgeCanvas.Position2 = fyne.NewPos(x2, y2)
-	newEdgeCanvas.StrokeWidth = chess.DotCanvasWidth
+	newEdgeCanvas.StrokeWidth = Chess.DotCanvasWidth
 	return newEdgeCanvas
 }
 
 // NewBoxCanvas creates a new box canvas for the specified box.
 func NewBoxCanvas(box Box) *canvas.Rectangle {
 	d := Dot(box)
-	x := transPosition(d.X()) + chess.DotCanvasWidth
-	y := transPosition(d.Y()) + chess.DotCanvasWidth
+	x := transPosition(d.X()) + Chess.DotCanvasWidth
+	y := transPosition(d.Y()) + Chess.DotCanvasWidth
 	newBoxCanvas := canvas.NewRectangle(gameTheme.GetThemeColor())
 	newBoxCanvas.Move(fyne.NewPos(x, y))
-	newBoxCanvas.Resize(fyne.NewSize(chess.BoxCanvasSize, chess.BoxCanvasSize))
+	newBoxCanvas.Resize(fyne.NewSize(Chess.BoxCanvasSize, Chess.BoxCanvasSize))
 	return newBoxCanvas
 }
 
@@ -357,13 +331,13 @@ func main() {
 		sigChan := make(chan os.Signal, 1)
 		signal.Notify(sigChan, syscall.SIGQUIT, syscall.SIGABRT, syscall.SIGALRM, syscall.SIGHUP, syscall.SIGPIPE)
 		sig := <-sigChan
-		SendMessage("Received signal: %v\n", sig)
+		Message.Send("Received signal: %v\n", sig)
 		game.Refresh()
 		os.Exit(0)
 	}()
 
 	globalLock.Lock()
-	MoveRecords := append([]MoveRecord{}, chess.ChessMoveRecords...)
+	MoveRecords := append([]MoveRecord{}, Chess.ChessMoveRecords...)
 	MainWindow.SetFixedSize(true)
 	fyne.CurrentApp().Settings().SetTheme(gameTheme)
 	fyne.CurrentApp().Lifecycle().SetOnStopped(game.Refresh)
@@ -371,17 +345,17 @@ func main() {
 	// Initialize the game board and UI elements.
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		if chess.DotCanvasDistance == 0 {
-			chess.DotCanvasDistance = DefaultDotDistance
+		if Chess.DotCanvasDistance == 0 {
+			Chess.DotCanvasDistance = DefaultDotDistance
 		}
-		if chess.BoardSize == 0 {
-			chess.BoardSize = DefaultBoardSize
+		if Chess.BoardSize == 0 {
+			Chess.BoardSize = DefaultBoardSize
 		}
-		SetDotDistance(chess.DotCanvasDistance)
+		SetDotDistance(Chess.DotCanvasDistance)
 		if len(MoveRecords) > 0 {
 			game.Recover(MoveRecords)
 		} else {
-			game.Restart(chess.BoardSize)
+			game.Restart(Chess.BoardSize)
 		}
 		game.Refresh()
 		globalLock.Unlock()
@@ -392,7 +366,7 @@ func main() {
 				img := MainWindow.Canvas().Capture()
 				buf := new(bytes.Buffer)
 				if err := png.Encode(buf, img); err != nil {
-					SendMessage(err.Error())
+					Message.Send(err.Error())
 					continue
 				}
 				icon := fyne.NewStaticResource("Dots-and-Boxes", buf.Bytes())

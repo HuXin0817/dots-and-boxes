@@ -46,12 +46,12 @@ func (se SearchEngine) GetBestEdge() (bestEdge Edge) {
 	globalSearchTime := make(map[Edge]int)
 	globalSumScore := make(map[Edge]int)
 	// Slice of maps to store local search times and scores for each goroutine
-	localSearchTimes := make([]map[Edge]int, chess.AISearchGoroutines)
-	localSumScores := make([]map[Edge]int, chess.AISearchGoroutines)
+	localSearchTimes := make([]map[Edge]int, Chess.AISearchGoroutines)
+	localSumScores := make([]map[Edge]int, Chess.AISearchGoroutines)
 	var wg sync.WaitGroup
-	wg.Add(chess.AISearchGoroutines)
+	wg.Add(Chess.AISearchGoroutines)
 	// Launch multiple goroutines for parallel edge evaluation
-	for i := 0; i < chess.AISearchGoroutines; i++ {
+	for i := 0; i < Chess.AISearchGoroutines; i++ {
 		localSearchTime := make(map[Edge]int)
 		localSumScore := make(map[Edge]int)
 		localSearchTimes[i] = localSearchTime
@@ -59,7 +59,7 @@ func (se SearchEngine) GetBestEdge() (bestEdge Edge) {
 		go func() {
 			defer wg.Done()
 			// Set a timeout for each goroutine to limit search time
-			timer := time.NewTimer(chess.AISearchTime)
+			timer := time.NewTimer(Chess.AISearchTime)
 			for {
 				select {
 				case <-timer.C:
@@ -93,7 +93,7 @@ func (se SearchEngine) GetBestEdge() (bestEdge Edge) {
 	wg.Wait() // Wait for all goroutines to finish
 
 	// Aggregate local statistics into global statistics
-	for i := range chess.AISearchGoroutines {
+	for i := range Chess.AISearchGoroutines {
 		for e, s := range localSearchTimes[i] {
 			globalSearchTime[e] += s
 		}

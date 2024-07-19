@@ -34,18 +34,18 @@ type gameManager struct{}
 func (g gameManager) Refresh() {
 	RefreshMenu()
 	Container.Refresh()
-	j, err := sonic.Marshal(chess)
+	j, err := sonic.Marshal(Chess)
 	if err != nil {
-		SendMessage(err.Error())
+		Message.Send(err.Error())
 	}
 	if err := os.WriteFile(ChessMetaFileName, j, os.ModePerm); err != nil {
-		SendMessage(err.Error())
+		Message.Send(err.Error())
 	}
 }
 
 // notifySignChan sends a signal to the AI player's channel if it's their turn.
 func (g gameManager) notifySignChan() {
-	if (chess.AIPlayer1 && CurrentTurn == Player1Turn) || (chess.AIPlayer2 && CurrentTurn == Player2Turn) {
+	if (Chess.AIPlayer1 && CurrentTurn == Player1Turn) || (Chess.AIPlayer2 && CurrentTurn == Player2Turn) {
 		select {
 		case SignChan <- struct{}{}:
 		default:
@@ -55,28 +55,28 @@ func (g gameManager) notifySignChan() {
 
 // restart initializes a new game with the specified board size.
 func (g gameManager) restart(NewBoardSize int) {
-	chess.BoardSize = NewBoardSize
-	chess.BoardSizePower = Dot(chess.BoardSize * chess.BoardSize)
-	chess.MainWindowSize = chess.DotCanvasDistance*float32(chess.BoardSize) + chess.BoardMargin - 5
-	MainWindow.Resize(fyne.NewSize(chess.MainWindowSize, chess.MainWindowSize))
+	Chess.BoardSize = NewBoardSize
+	Chess.BoardSizePower = Dot(Chess.BoardSize * Chess.BoardSize)
+	Chess.MainWindowSize = Chess.DotCanvasDistance*float32(Chess.BoardSize) + Chess.BoardMargin - 5
+	MainWindow.Resize(fyne.NewSize(Chess.MainWindowSize, Chess.MainWindowSize))
 
 	// Initialize dots
 	AllDots = []Dot{}
-	for i := 0; i < chess.BoardSize; i++ {
-		for j := 0; j < chess.BoardSize; j++ {
+	for i := 0; i < Chess.BoardSize; i++ {
+		for j := 0; j < Chess.BoardSize; j++ {
 			AllDots = append(AllDots, NewDot(i, j))
 		}
 	}
 
 	// Initialize edges
 	AllEdges = make(map[Edge]struct{})
-	for i := 0; i < chess.BoardSize; i++ {
-		for j := 0; j < chess.BoardSize; j++ {
+	for i := 0; i < Chess.BoardSize; i++ {
+		for j := 0; j < Chess.BoardSize; j++ {
 			d := NewDot(i, j)
-			if i+1 < chess.BoardSize {
+			if i+1 < Chess.BoardSize {
 				AllEdges[NewEdge(d, NewDot(i+1, j))] = struct{}{}
 			}
-			if j+1 < chess.BoardSize {
+			if j+1 < Chess.BoardSize {
 				AllEdges[NewEdge(d, NewDot(i, j+1))] = struct{}{}
 			}
 		}
@@ -86,7 +86,7 @@ func (g gameManager) restart(NewBoardSize int) {
 	// Initialize boxes
 	AllBoxes = []Box{}
 	for _, d := range AllDots {
-		if d.X() < chess.BoardSize-1 && d.Y() < chess.BoardSize-1 {
+		if d.X() < Chess.BoardSize-1 && d.Y() < Chess.BoardSize-1 {
 			AllBoxes = append(AllBoxes, Box(d))
 		}
 	}
@@ -130,7 +130,7 @@ func (g gameManager) restart(NewBoardSize int) {
 	EdgeButtons = make(map[Edge]*widget.Button)
 	BoxesFilledColor = make(map[Box]color.Color)
 	Container = container.NewWithoutLayout()
-	chess.ChessMoveRecords = []MoveRecord{}
+	Chess.ChessMoveRecords = []MoveRecord{}
 	CurrentTurn = Player1Turn
 	Player1Score = 0
 	Player2Score = 0
@@ -151,7 +151,7 @@ func (g gameManager) restart(NewBoardSize int) {
 		EdgeButtons[e] = widget.NewButton("", func() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
-			if (chess.AIPlayer1 && CurrentTurn == Player1Turn) || (chess.AIPlayer2 && CurrentTurn == Player2Turn) {
+			if (Chess.AIPlayer1 && CurrentTurn == Player1Turn) || (Chess.AIPlayer2 && CurrentTurn == Player2Turn) {
 				return
 			}
 			g.AddEdge(e)
@@ -185,26 +185,26 @@ func (g gameManager) restart(NewBoardSize int) {
 // Restart restarts the game with the given board size and sends a message.
 func (g gameManager) Restart(size int) {
 	g.restart(size)
-	SendMessage("Game Start! BoardSize: %v", chess.BoardSize)
+	Message.Send("Game Start! BoardSize: %v", Chess.BoardSize)
 }
 
 // storeMoveRecord saves the current game state to a log file.
 func (g gameManager) storeMoveRecord(WinMessage string) {
-	startTimeStamp := chess.ChessMoveRecords[0].TimeStamp.Format(time.DateTime)
-	endTimeStamp := chess.ChessMoveRecords[len(chess.ChessMoveRecords)-1].TimeStamp.Format(time.DateTime)
+	startTimeStamp := Chess.ChessMoveRecords[0].TimeStamp.Format(time.DateTime)
+	endTimeStamp := Chess.ChessMoveRecords[len(Chess.ChessMoveRecords)-1].TimeStamp.Format(time.DateTime)
 	gameName := fmt.Sprintf("Game %v", startTimeStamp)
 	f, err := os.Create(gameName + ".log")
 	if err != nil {
-		SendMessage(err.Error())
+		Message.Send(err.Error())
 		return
 	}
-	record := fmt.Sprintf("%v BoardSize: %v\n", startTimeStamp, chess.BoardSize)
-	for _, r := range chess.ChessMoveRecords {
+	record := fmt.Sprintf("%v BoardSize: %v\n", startTimeStamp, Chess.BoardSize)
+	for _, r := range Chess.ChessMoveRecords {
 		record = record + r.String() + "\n"
 	}
 	record += endTimeStamp + " " + WinMessage
 	if _, err := f.WriteString(record); err != nil {
-		SendMessage(err.Error())
+		Message.Send(err.Error())
 		return
 	}
 }
@@ -233,7 +233,7 @@ func (g gameManager) startTipAnimation(nowStep int, boxesCanvas *canvas.Rectangl
 
 // AddEdge adds an edge to the board and updates the game state.
 func (g gameManager) AddEdge(e Edge) {
-	if chess.BoardSize <= 1 {
+	if Chess.BoardSize <= 1 {
 		return
 	}
 	if CurrentBoard.Contains(e) {
@@ -242,7 +242,7 @@ func (g gameManager) AddEdge(e Edge) {
 	if e == InvalidEdge {
 		return
 	}
-	chess.ChessMoveRecords = append(chess.ChessMoveRecords, MoveRecord{
+	Chess.ChessMoveRecords = append(Chess.ChessMoveRecords, MoveRecord{
 		TimeStamp:    time.Now(),
 		Step:         CurrentBoard.Size(),
 		Player:       CurrentTurn,
@@ -253,7 +253,7 @@ func (g gameManager) AddEdge(e Edge) {
 	nowStep := CurrentBoard.Size()
 	obtainsBoxes := ObtainsBoxes(CurrentBoard, e)
 	score := len(obtainsBoxes)
-	if chess.OpenMusic {
+	if Chess.OpenMusic {
 		var wg sync.WaitGroup
 		wg.Add(1)
 		defer wg.Wait()
@@ -261,11 +261,11 @@ func (g gameManager) AddEdge(e Edge) {
 			defer wg.Done()
 			if score > 0 {
 				if err := musicPlayer.PlayScoreMusic(); err != nil {
-					SendMessage(err.Error())
+					Message.Send(err.Error())
 				}
 			} else {
 				if err := musicPlayer.PlayMoveMusic(); err != nil {
-					SendMessage(err.Error())
+					Message.Send(err.Error())
 				}
 			}
 		}()
@@ -312,12 +312,12 @@ func (g gameManager) AddEdge(e Edge) {
 		} else if Player1Score == Player2Score {
 			WinMessage = "Draw!"
 		}
-		SendMessage(WinMessage)
+		Message.Send(WinMessage)
 		g.storeMoveRecord(WinMessage)
-		if chess.AutoRestartGame {
+		if Chess.AutoRestartGame {
 			go func() {
 				time.Sleep(2 * time.Second)
-				g.Restart(chess.BoardSize)
+				g.Restart(Chess.BoardSize)
 			}()
 		}
 	}
@@ -326,10 +326,10 @@ func (g gameManager) AddEdge(e Edge) {
 
 // Undo reverts the last move.
 func (g gameManager) Undo() {
-	moveRecord := append([]MoveRecord{}, chess.ChessMoveRecords...)
+	moveRecord := append([]MoveRecord{}, Chess.ChessMoveRecords...)
 	if len(moveRecord) > 0 {
 		r := moveRecord[len(moveRecord)-1]
-		SendMessage("Undo Edge %v", r.MoveEdge)
+		Message.Send("Undo Edge %v", r.MoveEdge)
 		moveRecord = moveRecord[:len(moveRecord)-1]
 		g.Recover(moveRecord)
 	}
@@ -337,33 +337,33 @@ func (g gameManager) Undo() {
 
 // Recover replays the move records to restore the game state.
 func (g gameManager) Recover(MoveRecord []MoveRecord) {
-	if chess.OpenMusic {
-		chess.OpenMusic = !chess.OpenMusic
-		defer func() { chess.OpenMusic = !chess.OpenMusic }()
+	if Chess.OpenMusic {
+		Chess.OpenMusic = !Chess.OpenMusic
+		defer func() { Chess.OpenMusic = !Chess.OpenMusic }()
 	}
-	g.restart(chess.BoardSize)
+	g.restart(Chess.BoardSize)
 	for _, r := range MoveRecord {
 		g.AddEdge(r.MoveEdge)
 	}
-	chess.ChessMoveRecords = MoveRecord
+	Chess.ChessMoveRecords = MoveRecord
 }
 
 // StartAIPlayer1 starts or stops AI player 1.
 func (g gameManager) StartAIPlayer1() {
-	if !chess.AIPlayer1 {
+	if !Chess.AIPlayer1 {
 		g.notifySignChan()
 	}
-	message := GetMessage("AIPlayer1", !chess.AIPlayer1)
-	SendMessage(message)
-	chess.AIPlayer1 = !chess.AIPlayer1
+	message := GetMessage("AIPlayer1", !Chess.AIPlayer1)
+	Message.Send(message)
+	Chess.AIPlayer1 = !Chess.AIPlayer1
 }
 
 // StartAIPlayer2 starts or stops AI player 2.
 func (g gameManager) StartAIPlayer2() {
-	if !chess.AIPlayer2 {
+	if !Chess.AIPlayer2 {
 		g.notifySignChan()
 	}
-	message := GetMessage("AIPlayer2", !chess.AIPlayer2)
-	SendMessage(message)
-	chess.AIPlayer2 = !chess.AIPlayer2
+	message := GetMessage("AIPlayer2", !Chess.AIPlayer2)
+	Message.Send(message)
+	Chess.AIPlayer2 = !Chess.AIPlayer2
 }

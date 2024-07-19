@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -94,7 +95,7 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			game.Restart(chess.BoardSize)
+			game.Restart(Chess.BoardSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyR},
 	}
@@ -102,7 +103,7 @@ func init() {
 	ScoreMenuItem = &fyne.MenuItem{
 		Action: func() {
 			message := fmt.Sprintf("Player1 Score: %v\nPlayer2 Score: %v\n", Player1Score, Player2Score)
-			SendMessage(message)
+			Message.Send(message)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyT},
 	}
@@ -112,7 +113,7 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			game.Restart(chess.BoardSize + 1)
+			game.Restart(Chess.BoardSize + 1)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyEqual},
 	}
@@ -122,7 +123,7 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			game.Restart(chess.BoardSize - 1)
+			game.Restart(Chess.BoardSize - 1)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyMinus},
 	}
@@ -154,16 +155,16 @@ func init() {
 			img := MainWindow.Canvas().Capture()
 			buf := new(bytes.Buffer)
 			if err := png.Encode(buf, img); err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 				return
 			}
 			path, err := getSaveFilePath()
 			if err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 				return
 			}
 			if err := os.WriteFile(path, buf.Bytes(), 0666); err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 				return
 			}
 		},
@@ -175,8 +176,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			SetDotDistance(chess.DotCanvasDistance + 10)
-			SendMessage("Now BoardWidth: %v", chess.MainWindowSize)
+			SetDotDistance(Chess.DotCanvasDistance + 10)
+			Message.Send("Now BoardWidth: %v", Chess.MainWindowSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyUp},
 	}
@@ -186,8 +187,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			SetDotDistance(chess.DotCanvasDistance - 10)
-			SendMessage("Now BoardWidth: %v", chess.MainWindowSize)
+			SetDotDistance(Chess.DotCanvasDistance - 10)
+			Message.Send("Now BoardWidth: %v", Chess.MainWindowSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyDown},
 	}
@@ -198,7 +199,7 @@ func init() {
 			defer globalLock.Unlock()
 			defer game.Refresh()
 			SetDotDistance(DefaultDotDistance)
-			SendMessage("Now BoardWidth: %v", chess.MainWindowSize)
+			Message.Send("Now BoardWidth: %v", Chess.MainWindowSize)
 		},
 	}
 
@@ -227,8 +228,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			chess.AISearchTime = chess.AISearchTime << 1
-			SendMessage("Now AISearchTime: %v", chess.AISearchTime)
+			Chess.AISearchTime = Chess.AISearchTime << 1
+			Message.Send("Now AISearchTime: %v", Chess.AISearchTime)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key3},
 	}
@@ -238,8 +239,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			chess.AISearchTime = chess.AISearchTime >> 1
-			SendMessage("Now AISearchTime: %v", chess.AISearchTime)
+			Chess.AISearchTime = Chess.AISearchTime >> 1
+			Message.Send("Now AISearchTime: %v", Chess.AISearchTime)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key4},
 	}
@@ -249,8 +250,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			chess.AISearchTime = time.Second
-			SendMessage("Now AISearchTime: %v", chess.AISearchTime)
+			Chess.AISearchTime = time.Second
+			Message.Send("Now AISearchTime: %v", Chess.AISearchTime)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key5},
 	}
@@ -260,8 +261,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			chess.AISearchGoroutines <<= 1
-			SendMessage("Now AISearchGoroutines: %v", chess.AISearchGoroutines)
+			Chess.AISearchGoroutines <<= 1
+			Message.Send("Now AISearchGoroutines: %v", Chess.AISearchGoroutines)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key6},
 	}
@@ -271,8 +272,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			chess.AISearchGoroutines >>= 1
-			SendMessage("Now AISearchGoroutines: %v", chess.AISearchGoroutines)
+			Chess.AISearchGoroutines >>= 1
+			Message.Send("Now AISearchGoroutines: %v", Chess.AISearchGoroutines)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key7},
 	}
@@ -282,8 +283,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			chess.AISearchGoroutines = runtime.NumCPU()
-			SendMessage("Now AISearchGoroutines: %v", chess.AISearchGoroutines)
+			Chess.AISearchGoroutines = runtime.NumCPU()
+			Message.Send("Now AISearchGoroutines: %v", Chess.AISearchGoroutines)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.Key8},
 	}
@@ -293,8 +294,8 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			SendMessage(GetMessage("Music", !chess.OpenMusic))
-			chess.OpenMusic = !chess.OpenMusic
+			Message.Send(GetMessage("Music", !Chess.OpenMusic))
+			Chess.OpenMusic = !Chess.OpenMusic
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyP},
 	}
@@ -304,14 +305,14 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			if !chess.AutoRestartGame {
+			if !Chess.AutoRestartGame {
 				if CurrentBoard.Size() == AllEdgesCount {
-					game.Restart(chess.BoardSize)
+					game.Restart(Chess.BoardSize)
 				}
 			}
-			message := GetMessage("Auto Restart Game", !chess.AutoRestartGame)
-			SendMessage(message)
-			chess.AutoRestartGame = !chess.AutoRestartGame
+			message := GetMessage("Auto Restart Game", !Chess.AutoRestartGame)
+			Message.Send(message)
+			Chess.AutoRestartGame = !Chess.AutoRestartGame
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyA},
 	}
@@ -319,7 +320,7 @@ func init() {
 	QuitMenuItem = &fyne.MenuItem{
 		Action: func() {
 			globalLock.Lock()
-			SendMessage("Game Closed")
+			Message.Send("Game Closed")
 			game.Refresh()
 			os.Exit(0)
 		},
@@ -327,12 +328,14 @@ func init() {
 		IsQuit:   true,
 	}
 
+	var performanceAnalysisLock sync.Mutex // Mutex for performance analysis synchronization
+
 	IncreasePerformanceAnalysisTimeMenuItem = &fyne.MenuItem{
 		Action: func() {
 			performanceAnalysisLock.Lock()
 			defer performanceAnalysisLock.Unlock()
-			chess.PerformanceAnalysisTime += 5 * time.Second
-			SendMessage("Now PerformanceAnalysisTime: %v", chess.PerformanceAnalysisTime)
+			Chess.PerformanceAnalysisTime += 5 * time.Second
+			Message.Send("Now PerformanceAnalysisTime: %v", Chess.PerformanceAnalysisTime)
 		},
 	}
 
@@ -340,8 +343,8 @@ func init() {
 		Action: func() {
 			performanceAnalysisLock.Lock()
 			defer performanceAnalysisLock.Unlock()
-			chess.PerformanceAnalysisTime -= 5 * time.Second
-			SendMessage("Now PerformanceAnalysisTime: %v", chess.PerformanceAnalysisTime)
+			Chess.PerformanceAnalysisTime -= 5 * time.Second
+			Message.Send("Now PerformanceAnalysisTime: %v", Chess.PerformanceAnalysisTime)
 		},
 	}
 
@@ -349,8 +352,8 @@ func init() {
 		Action: func() {
 			performanceAnalysisLock.Lock()
 			defer performanceAnalysisLock.Unlock()
-			chess.PerformanceAnalysisTime = DefaultPerformanceAnalysisTime
-			SendMessage("Now PerformanceAnalysisTime: %v", chess.PerformanceAnalysisTime)
+			Chess.PerformanceAnalysisTime = DefaultPerformanceAnalysisTime
+			Message.Send("Now PerformanceAnalysisTime: %v", Chess.PerformanceAnalysisTime)
 		},
 	}
 
@@ -369,30 +372,30 @@ func init() {
 			srv := &http.Server{Addr: ":6060", Handler: r}
 			defer func(srv *http.Server) {
 				if err := srv.Close(); err != nil {
-					SendMessage(err.Error())
+					Message.Send(err.Error())
 				}
 			}(srv)
 			go func() {
 				if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-					SendMessage(err.Error())
+					Message.Send(err.Error())
 				}
 			}()
-			SendMessage("Start to generate pprof")
-			pprofFileName := fmt.Sprintf("%v-%v.prof", time.Now().Format(time.DateTime), time.Now().Add(chess.PerformanceAnalysisTime).Format(time.DateTime))
+			Message.Send("Start to generate pprof")
+			pprofFileName := fmt.Sprintf("%v-%v.prof", time.Now().Format(time.DateTime), time.Now().Add(Chess.PerformanceAnalysisTime).Format(time.DateTime))
 			f, err := os.Create(pprofFileName)
 			if err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 				return
 			}
 			if err := pprof.StartCPUProfile(f); err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 				return
 			}
-			time.Sleep(chess.PerformanceAnalysisTime)
+			time.Sleep(Chess.PerformanceAnalysisTime)
 			pprof.StopCPUProfile()
-			SendMessage("Finish to generate Performance Analysis: %v", pprofFileName)
+			Message.Send("Finish to generate Performance Analysis: %v", pprofFileName)
 			if err := f.Close(); err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 			}
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyF},
@@ -402,10 +405,10 @@ func init() {
 		Action: func() {
 			link, err := url.Parse(HelpDocUrl)
 			if err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 			}
 			if err := fyne.CurrentApp().OpenURL(link); err != nil {
-				SendMessage(err.Error())
+				Message.Send(err.Error())
 			}
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyH},
@@ -464,33 +467,33 @@ func RefreshMenu() {
 	RestartGameMenuItem.Label = "Restart"
 
 	MusicMenuItem.Disabled = false
-	MusicMenuItem.Label = GetMessage("Music", !chess.OpenMusic)
+	MusicMenuItem.Label = GetMessage("Music", !Chess.OpenMusic)
 
 	AIPlayer1MenuItem.Disabled = false
-	AIPlayer1MenuItem.Label = GetMessage("AIPlayer1", !chess.AIPlayer1)
+	AIPlayer1MenuItem.Label = GetMessage("AIPlayer1", !Chess.AIPlayer1)
 
 	AIPlayer2MenuItem.Disabled = false
-	AIPlayer2MenuItem.Label = GetMessage("AIPlayer2", !chess.AIPlayer2)
+	AIPlayer2MenuItem.Label = GetMessage("AIPlayer2", !Chess.AIPlayer2)
 
 	AutoRestartMenuItem.Disabled = false
-	AutoRestartMenuItem.Label = GetMessage("AutoRestart", !chess.AutoRestartGame)
+	AutoRestartMenuItem.Label = GetMessage("AutoRestart", !Chess.AutoRestartGame)
 
 	IncreaseBoardWidthMenuItem.Disabled = false
 	IncreaseBoardWidthMenuItem.Label = "Add BoardWidth"
 
-	ReduceBoardWidthMenuItem.Disabled = chess.DotCanvasDistance <= MinDotSize
+	ReduceBoardWidthMenuItem.Disabled = Chess.DotCanvasDistance <= MinDotSize
 	ReduceBoardWidthMenuItem.Label = "Reduce BoardWidth"
 
-	ResetBoardWidthMenuItem.Disabled = chess.DotCanvasDistance == DefaultDotDistance
+	ResetBoardWidthMenuItem.Disabled = Chess.DotCanvasDistance == DefaultDotDistance
 	ResetBoardWidthMenuItem.Label = "Reset BoardWidth"
 
 	IncreaseBoardSizeMenuItem.Disabled = false
 	IncreaseBoardSizeMenuItem.Label = "Add BoardSize"
 
-	ReduceBoardSizeMenuItem.Disabled = chess.BoardSize <= MinBoardSize
+	ReduceBoardSizeMenuItem.Disabled = Chess.BoardSize <= MinBoardSize
 	ReduceBoardSizeMenuItem.Label = "Reduce BoardSize"
 
-	ResetBoardSizeMenuItem.Disabled = chess.BoardSize == DefaultBoardSize
+	ResetBoardSizeMenuItem.Disabled = Chess.BoardSize == DefaultBoardSize
 	ResetBoardSizeMenuItem.Label = "Reset BoardSize"
 
 	QuitMenuItem.Disabled = false
@@ -505,28 +508,28 @@ func RefreshMenu() {
 	IncreaseAISearchTimeMenuItem.Disabled = false
 	IncreaseAISearchTimeMenuItem.Label = "Increase AI Search Time"
 
-	ReduceAISearchTimeMenuItem.Disabled = chess.AISearchTime < time.Millisecond
+	ReduceAISearchTimeMenuItem.Disabled = Chess.AISearchTime < time.Millisecond
 	ReduceAISearchTimeMenuItem.Label = "Reduce AI Search Time"
 
-	ResetAISearchTimeMenuItem.Disabled = chess.AISearchTime == DefaultStepTime
+	ResetAISearchTimeMenuItem.Disabled = Chess.AISearchTime == DefaultStepTime
 	ResetAISearchTimeMenuItem.Label = "Reset AI Search Time"
 
 	IncreaseSearchGoroutinesMenuItem.Disabled = false
 	IncreaseSearchGoroutinesMenuItem.Label = "Increase Search Goroutines"
 
-	ReduceSearchGoroutinesMenuItem.Disabled = chess.AISearchGoroutines <= 1
+	ReduceSearchGoroutinesMenuItem.Disabled = Chess.AISearchGoroutines <= 1
 	ReduceSearchGoroutinesMenuItem.Label = "Reduce Search Goroutines"
 
-	ResetSearchGoroutinesMenuItem.Disabled = chess.AISearchGoroutines == runtime.NumCPU()
+	ResetSearchGoroutinesMenuItem.Disabled = Chess.AISearchGoroutines == runtime.NumCPU()
 	ResetSearchGoroutinesMenuItem.Label = "Reset Search Goroutines"
 
 	IncreasePerformanceAnalysisTimeMenuItem.Disabled = false
 	IncreasePerformanceAnalysisTimeMenuItem.Label = "Increase Performance Analysis Time"
 
-	ReducePerformanceAnalysisTimeMenuItem.Disabled = chess.PerformanceAnalysisTime <= time.Second*5
+	ReducePerformanceAnalysisTimeMenuItem.Disabled = Chess.PerformanceAnalysisTime <= time.Second*5
 	ReducePerformanceAnalysisTimeMenuItem.Label = "Reduce Performance Analysis Time"
 
-	ResetPerformanceAnalysisTimeMenuItem.Disabled = chess.PerformanceAnalysisTime == DefaultPerformanceAnalysisTime
+	ResetPerformanceAnalysisTimeMenuItem.Disabled = Chess.PerformanceAnalysisTime == DefaultPerformanceAnalysisTime
 	ResetPerformanceAnalysisTimeMenuItem.Label = "Reset Performance Analysis Time"
 
 	SavePerformanceAnalysisMenuItem.Disabled = false
