@@ -176,7 +176,7 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			SetDotDistance(Chess.DotCanvasDistance + 10)
+			game.SetDotDistance(Chess.DotCanvasDistance + 10)
 			Message.Send("Now BoardWidth: %v", Chess.MainWindowSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyUp},
@@ -187,7 +187,7 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			SetDotDistance(Chess.DotCanvasDistance - 10)
+			game.SetDotDistance(Chess.DotCanvasDistance - 10)
 			Message.Send("Now BoardWidth: %v", Chess.MainWindowSize)
 		},
 		Shortcut: &desktop.CustomShortcut{KeyName: fyne.KeyDown},
@@ -198,7 +198,7 @@ func init() {
 			globalLock.Lock()
 			defer globalLock.Unlock()
 			defer game.Refresh()
-			SetDotDistance(DefaultDotDistance)
+			game.SetDotDistance(DefaultDotDistance)
 			Message.Send("Now BoardWidth: %v", Chess.MainWindowSize)
 		},
 	}

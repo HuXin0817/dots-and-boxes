@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"image/png"
+	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -12,11 +13,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/bytedance/sonic"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
-	"github.com/bytedance/sonic"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,6 +26,7 @@ import (
 const HelpDocUrl = "https://github.com/HuXin0817/dots-and-boxes/blob/main/README.md"
 
 const (
+	OutputLogFileName              = "output.log"     // File name for storing output logs
 	ChessMetaFileName              = "meta.json"      // File name for storing Chess meta data
 	DefaultDotDistance             = 80               // Default distance between dots
 	DefaultBoardSize               = 6                // Default board size
@@ -73,10 +76,21 @@ func NewChessMeta() *ChessMeta {
 	}
 }
 
+func (chess *ChessMeta) Refresh() error {
+	j, err := sonic.Marshal(chess)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(ChessMetaFileName, j, os.ModePerm); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Global variables and initialization
 var (
-	Chess             = NewChessMeta()                        // Initialize Chess meta data
 	Message           = NewMessageManager()                   // Initialize MessageManager
+	Chess             = NewChessMeta()                        // Initialize Chess meta data
 	Player1Score      int                                     // Score of Player 1
 	Player2Score      int                                     // Score of Player 2
 	CurrentBoard      Board                                   // Current state of the board
@@ -99,7 +113,6 @@ var (
 	globalLock      sync.Mutex // Global mutex for synchronization
 	boxesCanvasLock sync.Mutex // Mutex for box canvas synchronization
 
-	OutputLogFile    *os.File          // File for output log
 	RefreshMacOSIcon = func([]byte) {} // Function for refreshing macOS icon
 )
 
@@ -214,6 +227,35 @@ func (m MoveRecord) String() string {
 	return fmt.Sprintf("%v Step: %v, Turn: %v, Edge: %v, Player1Score: %v, Player2Score: %v", m.TimeStamp.Format(time.DateTime), m.Step, m.Player, m.MoveEdge, m.Player1Score, m.Player2Score)
 }
 
+type MessageManager struct {
+	mu   sync.Mutex // Mutex for sent message synchronization
+	file *os.File
+}
+
+func NewMessageManager() *MessageManager {
+	// init initializes the output log file and handles potential errors.
+	f, err := os.OpenFile(OutputLogFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	return &MessageManager{file: f}
+}
+
+// Send sends a notification and logs the message.
+func (m *MessageManager) Send(format string, a ...any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	log.Printf(format+"\n", a...)
+	fyne.CurrentApp().SendNotification(&fyne.Notification{
+		Title:   "Dots-And-Boxes",
+		Content: fmt.Sprintf(format, a...),
+	})
+	if _, err := m.file.WriteString(time.Now().Format(time.DateTime) + " " + fmt.Sprintf(format, a...) + "\n"); err != nil {
+		log.Println(err)
+		return
+	}
+}
+
 // EdgesCountInBox counts how many edges in the specified box are already on the board.
 func EdgesCountInBox(b Board, box Box) (count int) {
 	boxEdges := box.Edges()
@@ -253,72 +295,109 @@ func ObtainsBoxes(b Board, e Edge) (obtainsBoxes []Box) {
 	return
 }
 
-// SetDotDistance sets the distance between dots and updates the board layout.
-func SetDotDistance(d float32) {
-	Chess.DotCanvasDistance = d
-	Chess.DotCanvasWidth = Chess.DotCanvasDistance / 5
-	Chess.BoardMargin = Chess.DotCanvasDistance / 3 * 2
-	Chess.BoxCanvasSize = Chess.DotCanvasDistance - Chess.DotCanvasWidth
-	Chess.MainWindowSize = Chess.DotCanvasDistance*float32(Chess.BoardSize) + Chess.BoardMargin - 5
-	MainWindow.Resize(fyne.NewSize(Chess.MainWindowSize, Chess.MainWindowSize))
-	moveRecord := append([]MoveRecord{}, Chess.ChessMoveRecords...)
-	game.Recover(moveRecord)
-}
-
-// transPosition translates a coordinate to its position on the canvas.
-func transPosition(x int) float32 { return Chess.BoardMargin + float32(x)*Chess.DotCanvasDistance }
-
-// GetDotPosition returns the position of a dot on the canvas.
-func GetDotPosition(d Dot) (float32, float32) { return transPosition(d.X()), transPosition(d.Y()) }
-
-// getEdgeButtonSizeAndPosition calculates the size and position of the edge button.
-func getEdgeButtonSizeAndPosition(e Edge) (size fyne.Size, pos fyne.Position) {
-	if e.Dot1().X() == e.Dot2().X() {
-		size = fyne.NewSize(Chess.DotCanvasWidth, Chess.DotCanvasDistance)
-		pos = fyne.NewPos(
-			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+Chess.DotCanvasWidth/2,
-			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+Chess.DotCanvasWidth/2,
-		)
-	} else {
-		size = fyne.NewSize(Chess.DotCanvasDistance, Chess.DotCanvasWidth)
-		pos = fyne.NewPos(
-			(transPosition(e.Dot1().X())+transPosition(e.Dot2().X()))/2-size.Width/2+Chess.DotCanvasWidth/2,
-			(transPosition(e.Dot1().Y())+transPosition(e.Dot2().Y()))/2-size.Height/2+Chess.DotCanvasWidth/2,
-		)
+// getNextEdges evaluates and selects the next best edge to draw on the board.
+// It returns the edge that either immediately obtains a score or minimizes the opponent's potential score.
+func getNextEdges(b Board) (bestEdge Edge) {
+	enemyMinScore := 3
+	for e := range AllEdges {
+		// Check if the edge is not a part of the board
+		if !b.Contains(e) {
+			// Check if drawing this edge obtains a score
+			if score := ObtainsScore(b, e); score > 0 {
+				return e // Immediately return if it obtains a score
+			} else if score == 0 {
+				// Evaluate the potential score the opponent might gain
+				boxes := e.AdjacentBoxes()
+				enemyScore := 0
+				for _, box := range boxes {
+					if EdgesCountInBox(b, box) == 2 {
+						enemyScore++ // Increment if the opponent could score here
+					}
+				}
+				// Select the edge that minimizes the appointment's Engine potential score
+				if enemyMinScore > enemyScore {
+					enemyMinScore = enemyScore
+					bestEdge = e
+				}
+			}
+		}
 	}
 	return
 }
 
-// NewDotCanvas creates a new dot canvas for the specified dot.
-func NewDotCanvas(d Dot) *canvas.Circle {
-	newDotCanvas := canvas.NewCircle(gameTheme.GetDotCanvasColor())
-	newDotCanvas.Resize(fyne.NewSize(Chess.DotCanvasWidth, Chess.DotCanvasWidth))
-	newDotCanvas.Move(fyne.NewPos(GetDotPosition(d)))
-	return newDotCanvas
-}
+// GetBestEdge performs a multithreaded search to determine the best edge to draw.
+// It uses multiple goroutines to simulate the game and gather statistics on edge performance.
+func GetBestEdge() (bestEdge Edge) {
+	// Maps to store global search times and scores for each edge
+	globalSearchTime := make(map[Edge]int)
+	globalSumScore := make(map[Edge]int)
+	// Slice of maps to store local search times and scores for each goroutine
+	localSearchTimes := make([]map[Edge]int, Chess.AISearchGoroutines)
+	localSumScores := make([]map[Edge]int, Chess.AISearchGoroutines)
+	var wg sync.WaitGroup
+	wg.Add(Chess.AISearchGoroutines)
+	// Launch multiple goroutines for parallel edge evaluation
+	for i := 0; i < Chess.AISearchGoroutines; i++ {
+		localSearchTime := make(map[Edge]int)
+		localSumScore := make(map[Edge]int)
+		localSearchTimes[i] = localSearchTime
+		localSumScores[i] = localSumScore
+		go func() {
+			defer wg.Done()
+			// Set a timeout for each goroutine to limit search time
+			timer := time.NewTimer(Chess.AISearchTime)
+			for {
+				select {
+				case <-timer.C:
+					return // Exit when the context times out
+				default:
+					// Clone the current board state
+					b := CurrentBoard.Clone()
+					firstEdge := InvalidEdge
+					score := 0
+					turn := Player1Turn
+					// Simulate the game until all edges are drawn
+					for b.Size() < AllEdgesCount {
+						edge := getNextEdges(b)
+						if firstEdge == InvalidEdge {
+							firstEdge = edge
+						}
+						s := ObtainsScore(b, edge)
+						score += int(turn) * s
+						if s == 0 {
+							ChangeTurn(&turn)
+						}
+						b.Add(edge)
+					}
+					// Update local statistics for the first edge chosen
+					localSearchTime[firstEdge]++
+					localSumScore[firstEdge] += score
+				}
+			}
+		}()
+	}
+	wg.Wait() // Wait for all goroutines to finish
 
-// NewEdgeCanvas creates a new edge canvas for the specified edge.
-func NewEdgeCanvas(e Edge) *canvas.Line {
-	x1 := transPosition(e.Dot1().X()) + Chess.DotCanvasWidth/2
-	y1 := transPosition(e.Dot1().Y()) + Chess.DotCanvasWidth/2
-	x2 := transPosition(e.Dot2().X()) + Chess.DotCanvasWidth/2
-	y2 := transPosition(e.Dot2().Y()) + Chess.DotCanvasWidth/2
-	newEdgeCanvas := canvas.NewLine(gameTheme.GetDotCanvasColor())
-	newEdgeCanvas.Position1 = fyne.NewPos(x1, y1)
-	newEdgeCanvas.Position2 = fyne.NewPos(x2, y2)
-	newEdgeCanvas.StrokeWidth = Chess.DotCanvasWidth
-	return newEdgeCanvas
-}
+	// Aggregate local statistics into global statistics
+	for i := range Chess.AISearchGoroutines {
+		for e, s := range localSearchTimes[i] {
+			globalSearchTime[e] += s
+		}
+		for e, s := range localSumScores[i] {
+			globalSumScore[e] += s
+		}
+	}
 
-// NewBoxCanvas creates a new box canvas for the specified box.
-func NewBoxCanvas(box Box) *canvas.Rectangle {
-	d := Dot(box)
-	x := transPosition(d.X()) + Chess.DotCanvasWidth
-	y := transPosition(d.Y()) + Chess.DotCanvasWidth
-	newBoxCanvas := canvas.NewRectangle(gameTheme.GetThemeColor())
-	newBoxCanvas.Move(fyne.NewPos(x, y))
-	newBoxCanvas.Resize(fyne.NewSize(Chess.BoxCanvasSize, Chess.BoxCanvasSize))
-	return newBoxCanvas
+	// Determine the best edge based on the highest average score
+	bestScore := -1e9
+	for e, score := range globalSumScore {
+		averageScore := float64(score) / float64(globalSearchTime[e])
+		if averageScore > bestScore {
+			bestEdge = e
+			bestScore = averageScore
+		}
+	}
+	return
 }
 
 // the main is the entry point of the application.
@@ -351,7 +430,7 @@ func main() {
 		if Chess.BoardSize == 0 {
 			Chess.BoardSize = DefaultBoardSize
 		}
-		SetDotDistance(Chess.DotCanvasDistance)
+		game.SetDotDistance(Chess.DotCanvasDistance)
 		if len(MoveRecords) > 0 {
 			game.Recover(MoveRecords)
 		} else {
@@ -380,7 +459,7 @@ func main() {
 		go func() {
 			for range SignChan {
 				globalLock.Lock()
-				game.AddEdge(searchEngine.GetBestEdge())
+				game.AddEdge(GetBestEdge())
 				game.Refresh()
 				globalLock.Unlock()
 			}
