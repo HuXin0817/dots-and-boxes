@@ -13,12 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/bytedance/sonic"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/widget"
+	"github.com/bytedance/sonic"
 	"github.com/gin-gonic/gin"
 )
 
